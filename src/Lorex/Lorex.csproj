@@ -13,10 +13,23 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>lorex</ToolCommandName>
     <PackageId>lorex</PackageId>
-    <Version>0.0.1</Version>
-    <Authors>Lorex Contributors</Authors>
-    <Description>Teach your AI agents once. Reuse that knowledge everywhere.</Description>
+    <Authors>Alireza Sabouri</Authors>
+    <Description>A CLI to manage, share, and sync AI agent skills across every tool, repo, and teammate.</Description>
+    <PackageDescription>A CLI to manage, share, and sync AI agent skills across every tool, repo, and teammate. Supports GitHub Copilot, Cursor, Claude, Codex, Windsurf, Cline, Roo, Gemini, OpenCode and more.</PackageDescription>
+    <PackageTags>ai;agents;skills;copilot;cursor;claude;codex;cli;dotnet-tool</PackageTags>
+    <PackageProjectUrl>https://github.com/alirezanet/lorex</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/alirezanet/lorex</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <!-- <PackageIcon>icon.png</PackageIcon> -->
+
+    <!-- Version is set via /p:Version=x.y.z from the release workflow — no hardcoded version here -->
+
+    <!-- Source Link -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
 
     <!-- AOT friendliness: no dynamic code by default -->
     <InvariantGlobalization>true</InvariantGlobalization>
@@ -25,6 +38,12 @@
 
   <ItemGroup>
     <PackageReference Include="Spectre.Console" Version="*" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\icon.png" Pack="true" PackagePath="\" Condition="Exists('..\..\icon.png')" />
   </ItemGroup>
 
   <ItemGroup>
