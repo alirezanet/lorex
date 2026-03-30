@@ -1,0 +1,18 @@
+{
+  "adapters": [
+    "copilot",
+    "codex",
+    "openclaw",
+    "cursor",
+    "claude",
+    "windsurf",
+    "cline",
+    "roo",
+    "gemini",
+    "opencode"
+  ],
+  "installedSkills": [
+    "lorex",
+    "lorex-contributing"
+  ]
+}

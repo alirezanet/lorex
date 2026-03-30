@@ -1,0 +1,40 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Optimize>true</Optimize>
+
+    <!-- dotnet tool packaging -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>lorex</ToolCommandName>
+    <PackageId>lorex</PackageId>
+    <Version>0.0.1</Version>
+    <Authors>Lorex Contributors</Authors>
+    <Description>Teach your AI agents once. Reuse that knowledge everywhere.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+
+    <!-- AOT friendliness: no dynamic code by default -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Spectre.Console" Version="*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\lorex.md" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Lorex.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+</Project>

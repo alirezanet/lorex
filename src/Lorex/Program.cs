@@ -1,0 +1,88 @@
+using Lorex.Commands;
+using Spectre.Console;
+
+// Ctrl+C → exit cleanly with code 130 (standard Unix convention for SIGINT)
+Console.CancelKeyPress += (_, e) =>
+{
+    e.Cancel = false;           // let the process die normally
+    AnsiConsole.WriteLine();    // tidy up the cursor line
+    Environment.Exit(130);
+};
+
+var command = args.Length > 0 ? args[0] : "--help";
+var rest = args.Length > 1 ? args[1..] : [];
+
+try
+{
+    return command switch
+    {
+        "init"      => InitCommand.Run(rest),
+        "install"   => InstallCommand.Run(rest),
+        "uninstall" => UninstallCommand.Run(rest),
+        "generate"  => GenerateCommand.Run(rest),
+        "publish"   => PublishCommand.Run(rest),
+        "sync"      => SyncCommand.Run(rest),
+        "list"      => ListCommand.Run(rest),
+        "status"    => StatusCommand.Run(rest),
+        "refresh"   => RefreshCommand.Run(rest),
+        "--version" or "-v" => PrintVersion(),
+        "--help" or "-h" => PrintHelp(),
+        _ => UnknownCommand(command),
+    };
+}
+catch (OperationCanceledException)
+{
+    AnsiConsole.MarkupLine("[dim]Cancelled.[/]");
+    return 130;
+}
+catch (Exception ex)
+{
+    AnsiConsole.MarkupLine("[red]Unexpected error:[/] {0}", Markup.Escape(ex.Message));
+    return 1;
+}
+
+static int PrintVersion()
+{
+    AnsiConsole.WriteLine("0.0.1");
+    return 0;
+}
+
+static int PrintHelp()
+{
+    var grid = new Grid()
+        .AddColumn(new GridColumn().Width(14))
+        .AddColumn(new GridColumn().Width(28))
+        .AddColumn();
+
+    void Row(string cmd, string args, string desc)
+        => grid.AddRow($"  [bold]{cmd}[/]", $"[dim]{args}[/]", desc);
+
+    Row("init",      "[[<url>]] [[--local]] [[--adapters a,b]]", "Configure a registry (or run local-only) and set up this project");
+    Row("install",   "<skill>",            "Install a skill from the registry");
+    Row("uninstall", "<skill>",            "Remove an installed skill");
+    Row("list",      "",                   "List skills available in the registry");
+    Row("status",    "",                   "Show installed skills and their state");
+    Row("sync",      "",                   "Pull latest skill versions from the registry");
+    Row("generate",  "[[<name>]] [[-d desc]] [[-t tags]] [[-o owner]]", "Scaffold a new skill for authoring");
+    Row("publish",   "[[<skill>…]]",          "Push local skills to the registry");
+    Row("refresh",   "[[--target adapter]]", "Re-inject the skill index into agent config files");
+
+    AnsiConsole.WriteLine();
+    AnsiConsole.Write(new FigletText("lorex").Color(Color.Blue));
+    AnsiConsole.MarkupLine("[dim]v0.0.1 — Teach your AI agents once. Reuse everywhere.[/]");
+    AnsiConsole.WriteLine();
+    AnsiConsole.MarkupLine("[bold]USAGE[/]  lorex [dim]<command>[/] [dim][[args]][/]");
+    AnsiConsole.WriteLine();
+    AnsiConsole.MarkupLine("[bold]COMMANDS[/]");
+    AnsiConsole.Write(grid);
+    AnsiConsole.WriteLine();
+    AnsiConsole.MarkupLine("[dim]Run [bold]lorex <command> --help[/] for command-specific help.[/]");
+    AnsiConsole.WriteLine();
+    return 0;
+}
+
+static int UnknownCommand(string name)
+{
+    AnsiConsole.MarkupLine("[red]Unknown command '[/]{0}[red]'[/]. Run [bold]lorex --help[/] for available commands.", Markup.Escape(name));
+    return 1;
+}
