@@ -1,3 +1,4 @@
+using System.Reflection;
 using Lorex.Commands;
 using Spectre.Console;
 
@@ -43,7 +44,13 @@ catch (Exception ex)
 
 static int PrintVersion()
 {
-    AnsiConsole.WriteLine("0.0.1");
+    var version = typeof(Program).Assembly
+        .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+        ?.InformationalVersion ?? "unknown";
+    // Strip any build metadata suffix (e.g. +commit hash)
+    var plus = version.IndexOf('+');
+    if (plus >= 0) version = version[..plus];
+    AnsiConsole.WriteLine(version);
     return 0;
 }
 
