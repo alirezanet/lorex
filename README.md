@@ -83,10 +83,10 @@ You don't need to write documentation manually. Because Lorex installs its own d
 
 **e.g Prompt:**
 
-> "Create a lorex skill called `<projectName>-conventions`. Analyze this repository's architecture, coding patterns, build and test commands, and common pitfalls. Capture the rules every contributor and AI agent should follow before making changes."
+> Create a lorex skill called `<projectName>-conventions`. Analyze this repository's architecture, coding patterns, build and test commands, and common pitfalls. Capture the rules every contributor and AI agent should follow before making changes.
 
 **The Result:**
-Your AI creates `.lorex/skills/auth-logic/SKILL.md`. Run `lorex refresh`, and that knowledge is now permanently available to **every** selected AI agent that opens this repo.
+Your AI creates `.lorex/skills/<projectName>-conventions/SKILL.md`. Run `lorex refresh`, and that knowledge is now permanently available to **every** selected AI agent that opens this repo.
 
 ### 2\. Share Your Wisdom (The Team Registry)
 
