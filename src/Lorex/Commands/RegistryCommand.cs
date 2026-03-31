@@ -1,3 +1,4 @@
+using Lorex.Cli;
 using Lorex.Core.Models;
 using Lorex.Core.Services;
 using Spectre.Console;
@@ -23,30 +24,10 @@ public static class RegistryCommand
 
         var projectRoot = ProjectRootLocator.ResolveForExistingProject(Directory.GetCurrentDirectory());
 
-        LorexConfig config = null!;
-        try
-        {
-            AnsiConsole.Status()
-                .Start("Refreshing registry policy...", ctx =>
-                {
-                    ctx.Spinner(Spinner.Known.Dots);
-                    config = ServiceFactory.Skills.RefreshRegistryPolicy(projectRoot);
-                });
-        }
-        catch (Exception ex)
-        {
-            AnsiConsole.MarkupLine("[red]Error:[/] {0}", Markup.Escape(ex.Message));
+        if (!RegistryCommandSupport.TryRefreshConfiguredRegistry(projectRoot, out LorexConfig config))
             return 1;
-        }
 
-        if (config.Registry is null)
-        {
-            AnsiConsole.MarkupLine("[red]No registry configured.[/] lorex is running in local-only mode.");
-            AnsiConsole.MarkupLine("[dim]Run [bold]lorex init <url>[/] to connect a registry before configuring it.[/]");
-            return 1;
-        }
-
-        var registryConfig = config.Registry;
+        var registryConfig = config.Registry!;
         var currentPolicy = registryConfig.Policy;
 
         AnsiConsole.MarkupLine("[bold]Configuring registry:[/] [dim]{0}[/]", registryConfig.Url);

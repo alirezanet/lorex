@@ -1,3 +1,4 @@
+using Lorex.Cli;
 using Lorex.Core.Adapters;
 using Lorex.Core.Models;
 using Lorex.Core.Services;
@@ -390,10 +391,7 @@ FinishInit:
                 available = ServiceFactory.Registry.ListAvailableSkills(config.Registry.Url, refresh: false);
             });
 
-        return InstallCommand.GetRecommendedSkillNames(
-            available,
-            config,
-            InstallCommand.GetProjectTagKeys(projectRoot, ServiceFactory.Git));
+        return ServiceFactory.RegistrySkills.GetRecommendedSkillNames(projectRoot, available, config);
     }
 
     private static List<string> FindRemainingRegistrySkills(string projectRoot, LorexConfig config)
@@ -409,6 +407,6 @@ FinishInit:
                 available = ServiceFactory.Registry.ListAvailableSkills(config.Registry.Url, refresh: false);
             });
 
-        return InstallCommand.GetInstallableSkillNames(available, config);
+        return ServiceFactory.RegistrySkills.GetInstallableSkillNames(available, config);
     }
 }

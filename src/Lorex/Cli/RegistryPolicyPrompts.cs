@@ -1,6 +1,6 @@
 using Lorex.Core.Models;
 
-namespace Lorex.Commands;
+namespace Lorex.Cli;
 
 internal static class RegistryPolicyPrompts
 {

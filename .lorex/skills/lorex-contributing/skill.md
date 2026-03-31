@@ -34,7 +34,12 @@ lorex/
 │   │   ├── CreateCommand.cs
 │   │   ├── PublishCommand.cs
 │   │   ├── RefreshCommand.cs
-│   │   └── ServiceFactory.cs
+│   │   └── RegistryCommand.cs
+│   ├── Cli/
+│   │   ├── ServiceFactory.cs
+│   │   ├── RegistryCommandSupport.cs
+│   │   ├── RegistryPolicyPrompts.cs
+│   │   └── SkillOverwritePrompts.cs
 │   ├── Core/
 │   │   ├── Adapters/
 │   │   │   ├── AdapterProjection.cs

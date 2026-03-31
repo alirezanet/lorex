@@ -1,3 +1,4 @@
+using Lorex.Cli;
 using Lorex.Core.Services;
 using Spectre.Console;
 

@@ -1,3 +1,5 @@
+using Lorex.Cli;
+using Lorex.Core.Models;
 using Lorex.Core.Services;
 using Spectre.Console;
 
@@ -19,13 +21,8 @@ public static class InstallCommand
 
         try
         {
-            var cfg = ServiceFactory.Skills.ReadConfig(projectRoot);
-            if (cfg.Registry is null)
-            {
-                AnsiConsole.MarkupLine("[red]No registry configured.[/] lorex is running in local-only mode.");
-                AnsiConsole.MarkupLine("[dim]Run [bold]lorex init <url>[/] to connect a registry, then try again.[/]");
+            if (!RegistryCommandSupport.TryReadConfiguredRegistry(projectRoot, out var cfg))
                 return 1;
-            }
 
             var installAll = WantsAll(args);
             var installRecommended = WantsRecommended(args);
@@ -45,20 +42,17 @@ public static class InstallCommand
                 return 1;
             }
 
-            IReadOnlyList<Core.Models.SkillMetadata>? available = null;
+            IReadOnlyList<SkillMetadata>? available = null;
 
             if (installAll)
             {
                 available = FetchAvailableSkills(cfg);
-                requestedSkills = GetInstallableSkillNames(available, cfg);
+                requestedSkills = ServiceFactory.RegistrySkills.GetInstallableSkillNames(available, cfg);
             }
             else if (installRecommended)
             {
                 available = FetchAvailableSkills(cfg);
-                requestedSkills = GetRecommendedSkillNames(
-                    available,
-                    cfg,
-                    GetProjectTagKeys(projectRoot, ServiceFactory.Git));
+                requestedSkills = ServiceFactory.RegistrySkills.GetRecommendedSkillNames(projectRoot, available, cfg);
 
                 if (requestedSkills.Count == 0)
                 {
@@ -142,64 +136,7 @@ public static class InstallCommand
                 && !string.Equals(a, RecommendedFlag, StringComparison.OrdinalIgnoreCase))
             .Distinct(StringComparer.OrdinalIgnoreCase)];
 
-    internal static List<string> GetInstallableSkillNames(
-        IReadOnlyList<Core.Models.SkillMetadata> available,
-        Core.Models.LorexConfig cfg) =>
-        [.. available
-            .Where(skill => !cfg.InstalledSkills.Contains(skill.Name, StringComparer.OrdinalIgnoreCase))
-            .OrderBy(skill => skill.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(skill => skill.Name)];
-
-    internal static List<string> GetRecommendedSkillNames(
-        IReadOnlyList<Core.Models.SkillMetadata> available,
-        Core.Models.LorexConfig cfg,
-        IReadOnlyCollection<string> projectTagKeys) =>
-        [.. available
-            .Where(skill => !cfg.InstalledSkills.Contains(skill.Name, StringComparer.OrdinalIgnoreCase))
-            .Where(skill => IsRecommendedForProject(skill, projectTagKeys))
-            .OrderBy(skill => skill.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(skill => skill.Name)];
-
-    internal static string[] GetProjectTagKeys(string projectRoot, GitService git)
-    {
-        var keys = new List<string>();
-
-        var slug = git.TryGetProjectSlug(projectRoot);
-        if (!string.IsNullOrWhiteSpace(slug))
-            keys.Add(slug);
-
-        var folderName = Path.GetFileName(Path.TrimEndingDirectorySeparator(projectRoot));
-        var normalizedFolderName = NormalizeProjectTag(folderName);
-        if (!string.IsNullOrWhiteSpace(normalizedFolderName))
-            keys.Add(normalizedFolderName);
-
-        return [.. keys
-            .Where(key => !string.IsNullOrWhiteSpace(key))
-            .Distinct(StringComparer.OrdinalIgnoreCase)];
-    }
-
-    internal static bool IsRecommendedForProject(Core.Models.SkillMetadata skill, IReadOnlyCollection<string> projectTagKeys)
-    {
-        if (projectTagKeys.Count == 0 || skill.Tags.Length == 0)
-            return false;
-
-        var tagSet = skill.Tags
-            .Select(NormalizeProjectTag)
-            .Where(tag => !string.IsNullOrWhiteSpace(tag))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        return projectTagKeys.Any(tagSet.Contains);
-    }
-
-    internal static string NormalizeProjectTag(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return string.Empty;
-
-        return value.Trim().ToLowerInvariant().Replace('\\', '/');
-    }
-
-    private static List<string> PromptForSkills(string projectRoot, Core.Models.LorexConfig cfg)
+    private static List<string> PromptForSkills(string projectRoot, LorexConfig cfg)
     {
         var available = FetchAvailableSkills(cfg);
         if (available.Count == 0)
@@ -208,8 +145,10 @@ public static class InstallCommand
             return [];
         }
 
+        var installableNames = ServiceFactory.RegistrySkills.GetInstallableSkillNames(available, cfg);
+        var installableSet = installableNames.ToHashSet(StringComparer.OrdinalIgnoreCase);
         var choices = available
-            .Where(skill => !cfg.InstalledSkills.Contains(skill.Name, StringComparer.OrdinalIgnoreCase))
+            .Where(skill => installableSet.Contains(skill.Name))
             .OrderBy(skill => skill.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -220,10 +159,7 @@ public static class InstallCommand
             return [];
         }
 
-        var recommended = GetRecommendedSkillNames(
-            available,
-            cfg,
-            GetProjectTagKeys(projectRoot, ServiceFactory.Git));
+        var recommended = ServiceFactory.RegistrySkills.GetRecommendedSkillNames(projectRoot, available, cfg);
 
         var selectionMode = AnsiConsole.Prompt(
             new SelectionPrompt<string>()
@@ -239,7 +175,7 @@ public static class InstallCommand
             return [.. choices.Select(skill => skill.Name)];
 
         var selected = AnsiConsole.Prompt(
-            new MultiSelectionPrompt<Core.Models.SkillMetadata>()
+            new MultiSelectionPrompt<SkillMetadata>()
                 .Title("[bold]Which skills do you want to install?[/]")
                 .InstructionsText("[dim](Space to select, Enter to confirm)[/]")
                 .UseConverter(skill =>
@@ -254,14 +190,14 @@ public static class InstallCommand
         return [.. selected.Select(skill => skill.Name)];
     }
 
-    private static IReadOnlyList<Core.Models.SkillMetadata> FetchAvailableSkills(Core.Models.LorexConfig cfg)
+    private static IReadOnlyList<SkillMetadata> FetchAvailableSkills(LorexConfig cfg)
     {
-        IReadOnlyList<Core.Models.SkillMetadata> available = [];
+        IReadOnlyList<SkillMetadata> available = [];
         AnsiConsole.Status()
             .Start("Fetching registry…", ctx =>
             {
                 ctx.Spinner(Spinner.Known.Dots);
-                available = ServiceFactory.Registry.ListAvailableSkills(cfg.Registry!.Url);
+                available = ServiceFactory.RegistrySkills.ListAvailableSkills(cfg);
             });
 
         return available;

@@ -1,3 +1,4 @@
+using Lorex.Cli;
 using Lorex.Core.Services;
 using Spectre.Console;
 
@@ -13,24 +14,15 @@ public static class SyncCommand
 
         try
         {
-            var cfg = ServiceFactory.Skills.ReadConfig(projectRoot);
-            if (cfg.Registry is null)
-            {
-                AnsiConsole.MarkupLine("[red]No registry configured.[/] lorex is running in local-only mode.");
-                AnsiConsole.MarkupLine("[dim]Run [bold]lorex init <url>[/] to connect a registry, then try again.[/]");
+            if (!RegistryCommandSupport.TryReadConfiguredRegistry(projectRoot, out var cfg))
                 return 1;
-            }
 
             IReadOnlyList<string> updated = [];
             List<string> skipped = [];
             Lorex.Core.Models.LorexConfig refreshedConfig = cfg;
 
-            AnsiConsole.Status()
-                .Start("Refreshing registry...", ctx =>
-                {
-                    ctx.Spinner(Spinner.Known.Dots);
-                    refreshedConfig = ServiceFactory.Skills.RefreshRegistryPolicy(projectRoot);
-                });
+            if (!RegistryCommandSupport.TryRefreshConfiguredRegistry(projectRoot, out refreshedConfig, "Refreshing registry..."))
+                return 1;
 
             var overwriteCandidates = refreshedConfig.InstalledSkills
                 .Where(skillName =>

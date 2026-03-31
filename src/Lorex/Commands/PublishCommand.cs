@@ -1,3 +1,4 @@
+using Lorex.Cli;
 using Lorex.Core.Services;
 using Spectre.Console;
 
@@ -12,28 +13,8 @@ public static class PublishCommand
         var projectRoot = ProjectRootLocator.ResolveForExistingProject(Directory.GetCurrentDirectory());
         var builtIns = BuiltInSkillService.SkillNames().ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        try
-        {
-            Lorex.Core.Models.LorexConfig cfg = null!;
-            AnsiConsole.Status()
-                .Start("Refreshing registry policy...", ctx =>
-                {
-                    ctx.Spinner(Spinner.Known.Dots);
-                    cfg = ServiceFactory.Skills.RefreshRegistryPolicy(projectRoot);
-                });
-
-            if (cfg.Registry is null)
-            {
-                AnsiConsole.MarkupLine("[red]No registry configured.[/] lorex is running in local-only mode.");
-                AnsiConsole.MarkupLine("[dim]Run [bold]lorex init <url>[/] to connect a registry before publishing.[/]");
-                return 1;
-            }
-        }
-        catch (Exception ex)
-        {
-            AnsiConsole.MarkupLine("[red]Error:[/] {0}", Markup.Escape(ex.Message));
+        if (!RegistryCommandSupport.TryRefreshConfiguredRegistry(projectRoot, out var config))
             return 1;
-        }
 
         List<string> toPublish;
 

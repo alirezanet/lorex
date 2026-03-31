@@ -1,6 +1,6 @@
 using Spectre.Console;
 
-namespace Lorex.Commands;
+namespace Lorex.Cli;
 
 internal static class SkillOverwritePrompts
 {

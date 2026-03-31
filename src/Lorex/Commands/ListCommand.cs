@@ -1,3 +1,4 @@
+using Lorex.Cli;
 using Lorex.Core.Services;
 using Spectre.Console;
 
@@ -27,7 +28,7 @@ public static class ListCommand
                 .Start("Fetching registry…", ctx =>
                 {
                     ctx.Spinner(Spinner.Known.Dots);
-                    available = ServiceFactory.Registry.ListAvailableSkills(config.Registry.Url);
+                    available = ServiceFactory.RegistrySkills.ListAvailableSkills(config);
                 });
 
             if (available.Count == 0)
@@ -37,10 +38,7 @@ public static class ListCommand
             }
 
             var installed = new HashSet<string>(config.InstalledSkills, StringComparer.OrdinalIgnoreCase);
-            var recommended = InstallCommand.GetRecommendedSkillNames(
-                available,
-                config,
-                InstallCommand.GetProjectTagKeys(projectRoot, ServiceFactory.Git));
+            var recommended = ServiceFactory.RegistrySkills.GetRecommendedSkillNames(projectRoot, available, config);
             var recommendedSet = recommended.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             var table = new Table()

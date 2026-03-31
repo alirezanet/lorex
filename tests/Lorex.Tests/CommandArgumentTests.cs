@@ -1,4 +1,5 @@
 using Lorex.Commands;
+using Lorex.Cli;
 using Lorex.Core.Models;
 using Lorex.Core.Services;
 
@@ -23,12 +24,13 @@ public sealed class CommandArgumentTests
     }
 
     [Fact]
-    public void InstallCommand_GetInstallableSkillNames_ExcludesAlreadyInstalledSkills()
+    public void RegistrySkillQueryService_GetInstallableSkillNames_ExcludesAlreadyInstalledSkills()
     {
         var config = new LorexConfig
         {
             InstalledSkills = ["auth"],
         };
+        var service = new RegistrySkillQueryService(new RegistryService(new GitService()), new GitService());
 
         var available = new[]
         {
@@ -37,35 +39,37 @@ public sealed class CommandArgumentTests
             new SkillMetadata { Name = "build", Description = "Build" },
         };
 
-        var installable = InstallCommand.GetInstallableSkillNames(available, config);
+        var installable = service.GetInstallableSkillNames(available, config);
 
         Assert.Equal(["api", "build"], installable);
     }
 
     [Fact]
-    public void InstallCommand_GetRecommendedSkillNames_MatchesProjectTags()
+    public void RegistrySkillQueryService_IsRecommendedForProject_MatchesProjectTags()
     {
-        var config = new LorexConfig
+        var service = new RegistrySkillQueryService(new RegistryService(new GitService()), new GitService());
+
+        var matchingSkill = new SkillMetadata
         {
-            InstalledSkills = ["auth"],
+            Name = "api",
+            Description = "API",
+            Tags = ["alirezanet/lorex"],
+        };
+        var unrelatedSkill = new SkillMetadata
+        {
+            Name = "build",
+            Description = "Build",
+            Tags = ["dotnet"],
         };
 
-        var available = new[]
-        {
-            new SkillMetadata { Name = "api", Description = "API", Tags = ["alirezanet/lorex"] },
-            new SkillMetadata { Name = "auth", Description = "Auth", Tags = ["lorex"] },
-            new SkillMetadata { Name = "build", Description = "Build", Tags = ["dotnet"] },
-        };
-
-        var recommended = InstallCommand.GetRecommendedSkillNames(available, config, ["alirezanet/lorex", "lorex"]);
-
-        Assert.Equal(["api"], recommended);
+        Assert.True(service.IsRecommendedForProject(matchingSkill, ["alirezanet/lorex", "lorex"]));
+        Assert.False(service.IsRecommendedForProject(unrelatedSkill, ["alirezanet/lorex", "lorex"]));
     }
 
     [Fact]
-    public void InstallCommand_NormalizeProjectTag_LowercasesAndNormalizesSlashes()
+    public void RegistrySkillQueryService_NormalizeProjectTag_LowercasesAndNormalizesSlashes()
     {
-        var normalized = InstallCommand.NormalizeProjectTag("AliRezaNet\\Lorex");
+        var normalized = RegistrySkillQueryService.NormalizeProjectTag("AliRezaNet\\Lorex");
 
         Assert.Equal("alirezanet/lorex", normalized);
     }
