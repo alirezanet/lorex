@@ -53,4 +53,20 @@ public sealed class CommandArgumentTests
 
         Assert.Equal(["alpha", "beta", "zeta"], installed);
     }
+
+    [Fact]
+    public void InitCommand_GetDefaultAdapters_PrefersDetectedAdapters()
+    {
+        var defaults = InitCommand.GetDefaultAdapters(["claude", "codex"]);
+
+        Assert.Equal(["claude", "codex"], defaults);
+    }
+
+    [Fact]
+    public void InitCommand_GetDefaultAdapters_FallsBackToCopilotAndCodex()
+    {
+        var defaults = InitCommand.GetDefaultAdapters([]);
+
+        Assert.Equal(["copilot", "codex"], defaults);
+    }
 }

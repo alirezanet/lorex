@@ -62,7 +62,7 @@ You don't need to write documentation manually. Because Lorex installs its own d
 > "Create a lorex skill called `auth-logic`. Analyze our OAuth implementation and capture the core constraints, pitfalls, and flow so we don't forget them."
 
 **The Result:**
-Your AI creates `.lorex/skills/auth-logic/skill.md`. Run `lorex refresh`, and that knowledge is now permanently available to **every** selected AI agent that opens this repo.
+Your AI creates `.lorex/skills/auth-logic/SKILL.md`. Run `lorex refresh`, and that knowledge is now permanently available to **every** selected AI agent that opens this repo.
 
 ### 2\. Share Your Wisdom (The Team Registry)
 

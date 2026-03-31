@@ -8,11 +8,14 @@ namespace Lorex.Commands;
 /// <summary>Implements <c>lorex init</c>: configures a skill registry, selects adapters, and projects built-in skills into native agent locations.</summary>
 public static class InitCommand
 {
+    private const string AddNewRegistry = "+ Enter a new registry URL";
+    private const string UseLocalOnly = "- Keep this repo local-only";
+
     /// <summary>Runs the command. Returns 0 on success, 1 on failure.</summary>
     /// <remarks>
     /// Non-interactive usage: <c>lorex init &lt;url&gt; [--adapters copilot,codex]</c><br/>
     /// Local-only (no registry): <c>lorex init --local [--adapters copilot,codex]</c><br/>
-    /// Interactive usage:     <c>lorex init</c> (prompts for URL and adapters; Enter to skip registry)
+    /// Interactive usage:     <c>lorex init</c> (guided setup for registry and adapters)
     /// </remarks>
     public static int Run(string[] args)
     {
@@ -36,7 +39,7 @@ public static class InitCommand
 
         bool nonInteractive = urlArg is not null || localOnly;
 
-        AnsiConsole.MarkupLine("[bold]Initialising lorex in:[/] [dim]{0}[/]", projectRoot);
+        AnsiConsole.MarkupLine("[bold]Initialising lorex for project:[/] [dim]{0}[/]", projectRoot);
         AnsiConsole.WriteLine();
 
         // ── Registry URL ──────────────────────────────────────────────────────
@@ -64,56 +67,7 @@ public static class InitCommand
         }
         else
         {
-            // Interactive — allow skipping with empty input
-            const string AddNew = "+ Add new registry…";
-            const string SkipOption = "- Skip (local-only mode, no registry)";
-            while (true)
-            {
-                var knownRegistries = ServiceFactory.Skills.ReadGlobalConfig().Registries;
-
-                string input;
-                if (knownRegistries.Length > 0)
-                {
-                    var choices = knownRegistries.Append(AddNew).Append(SkipOption).ToList();
-                    var selected = AnsiConsole.Prompt(
-                        new SelectionPrompt<string>()
-                            .Title("[bold]Skill registry[/] [dim](select, add new, or skip):[/]")
-                            .AddChoices(choices));
-
-                    input = selected == AddNew
-                        ? AnsiConsole.Ask<string>("[bold]Registry URL[/] [dim](git repo — SSH or HTTPS):[/]")
-                        : selected;
-                }
-                else
-                {
-                    input = AnsiConsole.Prompt(
-                        new TextPrompt<string>("[bold]Skill registry URL[/] [dim](git repo — SSH or HTTPS, or press Enter to skip):[/]")
-                            .AllowEmpty());
-                }
-
-                if (input == SkipOption || string.IsNullOrWhiteSpace(input))
-                {
-                    registryUrl = null;
-                    break;
-                }
-
-                string? probeError = null;
-                AnsiConsole.Status().Start("Verifying registry…", ctx =>
-                {
-                    ctx.Spinner(Spinner.Known.Dots);
-                    probeError = ServiceFactory.Git.ProbeRemote(input.Trim());
-                });
-
-                if (probeError is null)
-                {
-                    registryUrl = input.Trim();
-                    break;
-                }
-
-                AnsiConsole.MarkupLine("[red]Cannot reach registry:[/] {0}", Markup.Escape(probeError));
-                AnsiConsole.MarkupLine("[dim]Fix the URL, check your network, or press Enter to skip.[/]");
-                AnsiConsole.WriteLine();
-            }
+            registryUrl = PromptForRegistryInteractive();
         }
 
         // ── Adapter selection ─────────────────────────────────────────────────
@@ -139,17 +93,7 @@ public static class InitCommand
         }
         else
         {
-            // Always prompt — pre-select detected adapters (or defaults) as a helpful starting point
-            var defaultAdapters = detected.Count > 0 ? detected : ["copilot", "codex"];
-
-            var prompt = new MultiSelectionPrompt<string>()
-                .Title("[bold]Which AI agent integrations should lorex maintain?[/]")
-                .AddChoices(adapterChoices);
-
-            foreach (var a in defaultAdapters)
-                prompt.Select(a);
-
-            selectedAdapters = AnsiConsole.Prompt(prompt);
+            selectedAdapters = PromptForAdaptersInteractive(projectRoot, detected, adapterChoices);
         }
 
         if (selectedAdapters.Count == 0)
@@ -206,6 +150,107 @@ public static class InitCommand
         else
             AnsiConsole.MarkupLine("[dim]Run [/][bold]lorex install <skill>[/][dim] to add your first skill.[/]");
         return 0;
+    }
+
+    internal static List<string> GetDefaultAdapters(IEnumerable<string> detectedAdapters)
+    {
+        var detected = detectedAdapters
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return detected.Count > 0 ? detected : ["copilot", "codex", "claude"];
+    }
+
+    private static string? PromptForRegistryInteractive()
+    {
+        while (true)
+        {
+            var knownRegistries = ServiceFactory.Skills.ReadGlobalConfig().Registries;
+
+            var selected = AnsiConsole.Prompt(
+                new SelectionPrompt<string>()
+                    .Title("[bold]Where should Lorex get shared skills from?[/]")
+                    .PageSize(10)
+                    .UseConverter(RenderRegistryChoice)
+                    .AddChoices(knownRegistries.Length > 0
+                        ? [.. knownRegistries, AddNewRegistry, UseLocalOnly]
+                        : [AddNewRegistry, UseLocalOnly]));
+
+            if (string.Equals(selected, UseLocalOnly, StringComparison.Ordinal))
+                return null;
+
+            var candidateUrl = string.Equals(selected, AddNewRegistry, StringComparison.Ordinal)
+                ? PromptForRegistryUrlInput()
+                : selected;
+
+            if (string.IsNullOrWhiteSpace(candidateUrl))
+                return null;
+
+            var trimmedUrl = candidateUrl.Trim();
+            string? probeError = null;
+            AnsiConsole.Status().Start("Verifying registry…", ctx =>
+            {
+                ctx.Spinner(Spinner.Known.Dots);
+                probeError = ServiceFactory.Git.ProbeRemote(trimmedUrl);
+            });
+
+            if (probeError is null)
+                return trimmedUrl;
+
+            AnsiConsole.MarkupLine("[red]Cannot reach registry:[/] {0}", Markup.Escape(probeError));
+
+            var retryChoice = AnsiConsole.Prompt(
+                new SelectionPrompt<string>()
+                    .Title("[bold]What do you want to do next?[/]")
+                    .AddChoices("Try another registry", "Use local-only mode"));
+
+            if (string.Equals(retryChoice, "Use local-only mode", StringComparison.Ordinal))
+                return null;
+
+            AnsiConsole.WriteLine();
+        }
+    }
+
+    private static string? PromptForRegistryUrlInput()
+    {
+        return AnsiConsole.Prompt(
+            new TextPrompt<string>("[bold]Registry URL[/] [dim](git repo — SSH or HTTPS; press Enter for local-only):[/]")
+                .AllowEmpty());
+    }
+
+    private static List<string> PromptForAdaptersInteractive(
+        string projectRoot,
+        IReadOnlyCollection<string> detectedAdapters,
+        IReadOnlyCollection<string> adapterChoices)
+    {
+        AnsiConsole.MarkupLine("[dim]Lorex will keep the selected native agent paths in sync with [[.lorex/skills/]].[/]");
+
+        var prompt = new MultiSelectionPrompt<string>()
+            .Title("[bold]Which agent integrations should Lorex maintain?[/]")
+            .InstructionsText("[dim](Space to toggle, Enter to confirm)[/]")
+            .PageSize(10)
+            .UseConverter(name => RenderAdapterChoice(projectRoot, name, detectedAdapters.Contains(name, StringComparer.OrdinalIgnoreCase)))
+            .AddChoices(adapterChoices);
+
+        foreach (var adapter in GetDefaultAdapters(detectedAdapters))
+            prompt.Select(adapter);
+
+        return AnsiConsole.Prompt(prompt);
+    }
+
+    private static string RenderRegistryChoice(string choice) => choice switch
+    {
+        AddNewRegistry => "[bold]Enter a new registry URL[/] [dim]- connect this repo to another git-based skill registry[/]",
+        UseLocalOnly => "[bold]Keep this repo local-only[/] [dim]- create and manage project-only skills without a shared registry[/]",
+        _ => $"[bold]Use saved registry[/] [dim]- {Markup.Escape(choice)}[/]",
+    };
+
+    private static string RenderAdapterChoice(string projectRoot, string adapterName, bool detected)
+    {
+        var targets = ServiceFactory.Adapters.DescribeTargets(projectRoot, adapterName);
+        var targetText = string.Join(", ", targets.Select(Markup.Escape));
+        var detectionText = detected ? "[green](detected)[/]" : "[dim](not detected)[/]";
+        return $"[bold]{Markup.Escape(adapterName)}[/] {detectionText} [dim]- {targetText}[/]";
     }
 }
 

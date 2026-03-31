@@ -25,7 +25,7 @@ Lorex commands resolve the project root by walking up from the current working d
 
 | Command | Syntax | When to use |
 |---|---|---|
-| `init` | `lorex init [<url>] [--local] [--adapters a,b]` | Set up lorex in a project and choose adapter projections |
+| `init` | `lorex init [<url>] [--local] [--adapters a,b]` | Set up lorex in a project with guided interactive prompts or explicit flags |
 | `create` | `lorex create [<name>] [-d desc] [-t tags] [-o owner]` | Scaffold a new local skill |
 | `install` | `lorex install [<skill>…] [--all]` | Install skills from the registry into this project |
 | `uninstall` | `lorex uninstall [<skill>…] [--all]` | Remove installed skills from this project |
@@ -36,6 +36,11 @@ Lorex commands resolve the project root by walking up from the current working d
 | `refresh` | `lorex refresh [--target adapter]` | Re-project skills into native agent locations after skill edits |
 
 `list`, `install`, `sync`, and `publish` require a registry. `create`, `status`, and `refresh` work in local-only mode.
+
+Running `lorex init` with no arguments opens a guided setup flow:
+
+1. Choose a saved registry, enter a new registry URL, or keep the repo local-only
+2. Choose which agent integrations lorex should maintain
 
 Running `lorex install` with no skill names opens an interactive flow where users can install all available skills or choose a subset. `lorex uninstall` similarly supports `--all` or an interactive flow to remove all installed skills or choose a subset.
 
