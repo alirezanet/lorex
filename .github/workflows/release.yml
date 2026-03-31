@@ -79,7 +79,9 @@ jobs:
       # linux-arm64 native AOT requires the aarch64 cross-linker on x64 runners
       - name: Install ARM64 cross-compile tools
         if: matrix.rid == 'linux-arm64'
-        run: sudo apt-get install -y clang gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
 
       - name: Extract version from tag
         id: ver
