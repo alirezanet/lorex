@@ -1,14 +1,17 @@
 namespace Lorex.Core.Adapters;
 
-/// <summary>Adapter for Claude Code (Anthropic) — injects the skill index into <c>CLAUDE.md</c>.</summary>
+/// <summary>Adapter for Claude Code — projects lorex skills into <c>.claude/skills</c>.</summary>
 public sealed class ClaudeAdapter : IAdapter
 {
-    /// <inheritdoc/>
     public string Name => "claude";
-    /// <inheritdoc/>
-    public string TargetFilePath(string projectRoot) =>
-        Path.Combine(projectRoot, "CLAUDE.md");
-    /// <inheritdoc/>
+
+    public AdapterProjection GetProjection(string projectRoot) =>
+        new SkillDirectoryProjection(Path.Combine(projectRoot, ".claude", "skills"));
+
     public bool DetectExisting(string projectRoot) =>
-        File.Exists(TargetFilePath(projectRoot));
+        Directory.Exists(Path.Combine(projectRoot, ".claude", "skills")) ||
+        File.Exists(Path.Combine(projectRoot, "CLAUDE.md"));
+
+    public IReadOnlyList<string> LegacyPaths(string projectRoot) =>
+        [Path.Combine(projectRoot, "CLAUDE.md")];
 }

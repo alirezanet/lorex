@@ -1,3 +1,4 @@
+using Lorex.Core.Services;
 using Spectre.Console;
 
 namespace Lorex.Commands;
@@ -8,7 +9,7 @@ public static class SyncCommand
     /// <summary>Runs the command. Returns 0 on success, 1 on failure.</summary>
     public static int Run(string[] args)
     {
-        var projectRoot = Directory.GetCurrentDirectory();
+        var projectRoot = ProjectRootLocator.ResolveForExistingProject(Directory.GetCurrentDirectory());
 
         try
         {
@@ -30,9 +31,9 @@ public static class SyncCommand
 
                     if (updated.Count > 0)
                     {
-                        ctx.Status("Compiling skill index...");
+                        ctx.Status("Projecting skills into native agent locations...");
                         var config = ServiceFactory.Skills.ReadConfig(projectRoot);
-                        ServiceFactory.Adapters.Compile(projectRoot, config);
+                        ServiceFactory.Adapters.Project(projectRoot, config);
                     }
                 });
 

@@ -8,108 +8,72 @@ owner: lorex
 
 # lorex
 
-Lorex is a CLI that manages **skills** — markdown files that give AI agents codebase knowledge. It injects a skill index into agent config files (Copilot, Cursor, Claude, Codex, etc.) so the agent knows what context is available and can load it on demand.
+Lorex is a CLI that manages reusable AI skills and projects them into each agent's native integration surface. The canonical source of truth is `.lorex/skills/<name>/SKILL.md`; adapter outputs are derived from that store.
 
-> **You are an AI agent reading this skill.** Use the information here to help users with lorex tasks and to create or manage skills yourself using the lorex CLI.
+> You are an AI agent reading this skill. Use it when the user asks about lorex usage, installed skills, adapter behavior, or how to create and share skills.
 
----
+## When a user asks what skills are available
 
-## When a User Asks You About Lorex
+1. Check `lorex status`
+2. Check `.lorex/lorex.json`
+3. List `.lorex/skills/`
+4. Read any installed `SKILL.md` files the user asks about
 
-If the user asks "what is lorex?" or "what skills are available?":
+Lorex commands resolve the project root by walking up from the current working directory to the nearest ancestor containing `.lorex/lorex.json`. Users do not need to run lorex from the repo root.
 
-1. Check `lorex status` to see what is installed and the registry URL
-2. Check `.lorex/lorex.json` for the full config
-3. List the skills under `.lorex/skills/` — each subfolder is an installed skill
-4. Read any installed `skill.md` files the user asks about
-
----
-
-## All Commands
+## Commands
 
 | Command | Syntax | When to use |
 |---|---|---|
-| `init` | `lorex init [<url>] [--local] [--adapters a,b]` | First-time setup in a project; picks agent config targets and optional registry |
-| `create` | `lorex create [<name>] [-d desc] [-t tags] [-o owner]` | Scaffold a new skill — creates the folder, writes the frontmatter, registers it, auto-refreshes the index. Alias: `generate` |
+| `init` | `lorex init [<url>] [--local] [--adapters a,b]` | Set up lorex in a project and choose adapter projections |
+| `create` | `lorex create [<name>] [-d desc] [-t tags] [-o owner]` | Scaffold a new local skill |
 | `install` | `lorex install [<skill>…]` | Install skills from the registry into this project |
-| `uninstall` | `lorex uninstall <skill>` | Remove an installed skill |
+| `uninstall` | `lorex uninstall <skill>` | Remove an installed skill from this project |
 | `list` | `lorex list` | Browse skills available in the registry |
-| `status` | `lorex status` | Show installed skills, their type (symlink/copy), and the registry URL |
-| `sync` | `lorex sync` | Pull latest skill versions from the registry |
-| `publish` | `lorex publish [<skill>…]` | Push a locally authored skill to the registry |
-| `refresh` | `lorex refresh [--target adapter]` | Re-inject the skill index into agent config files after manual changes |
+| `status` | `lorex status` | Show installed skills, registry state, and adapter targets |
+| `sync` | `lorex sync` | Pull the latest versions from the registry |
+| `publish` | `lorex publish [<skill>…]` | Push local skills to the registry |
+| `refresh` | `lorex refresh [--target adapter]` | Re-project skills into native agent locations after skill edits |
 
-Every command works interactively (prompts for missing inputs) and non-interactively (all flags provided — useful when you are running the command on behalf of the user).
+`list`, `install`, `sync`, and `publish` require a registry. `create`, `status`, and `refresh` work in local-only mode.
 
-`list`, `install`, `sync`, and `publish` require a registry. `create`, `status`, and `refresh` work without one.
+## Supported adapters
 
----
-
-## Supported Adapters
-
-| Key | File written |
+| Key | Native target maintained by lorex |
 |---|---|
-| `copilot` | `.github/copilot-instructions.md` |
-| `codex` | `AGENTS.md` |
-| `openclaw` | `AGENTS.md` |
-| `cursor` | `.cursorrules` |
-| `claude` | `CLAUDE.md` |
-| `windsurf` | `.windsurfrules` |
-| `cline` | `.clinerules` |
-| `roo` | `.roorules` |
-| `gemini` | `GEMINI.md` |
-| `opencode` | `opencode.md` |
+| `copilot` | `.github/skills/` |
+| `codex` | `.agents/skills/` |
+| `cursor` | `.cursor/rules/` |
+| `claude` | `.claude/skills/` |
+| `windsurf` | `.windsurf/skills/` |
+| `cline` | `.cline/skills/` |
+| `roo` | `.roo/rules-code/` |
+| `gemini` | `.gemini/settings.json` plus `.lorex/skills/*` as context directories |
+| `opencode` | `.opencode/skills/` |
 
----
+## How to create a skill
 
-## How to Create a Skill (For User or As Agent)
-
-**Always use `lorex create` first.** It handles everything automatically: creates the folder, writes the frontmatter template, registers the skill in `.lorex/lorex.json`, and refreshes the index. You then edit the generated `skill.md` with the actual content.
+Always start with `lorex create`. It creates the folder, writes the frontmatter template, registers the skill in `.lorex/lorex.json`, and refreshes adapter projections.
 
 ```sh
-# Scaffold a skill — lorex does the wiring
 lorex create <skill-name> -d "One-line description" -t "tag1,tag2" -o "owner"
 
-# Then write the content into the generated file
-# .lorex/skills/<skill-name>/skill.md
+# Then edit:
+# .lorex/skills/<skill-name>/SKILL.md
 ```
 
-**Do not** manually create folders, edit `lorex.json`, or run `lorex refresh` — `lorex create` does all of that for you. Only run `lorex refresh` if you edited a skill file manually after creation.
+Only run `lorex refresh` manually after editing an existing skill.
 
-### Common user requests you will handle
+`lorex init` also re-discovers any skills already present under `.lorex/skills/` and adds them back to `installedSkills`, so re-initialising a project does not orphan existing local skills.
 
-**"Create a lorex skill about this project's architecture"**
-1. Run `lorex create <name> -d "<description>"`
-2. Write the architecture content into `.lorex/skills/<name>/skill.md` below the frontmatter
-3. Confirm the skill index was updated (check the agent config file)
+## Skill format
 
-**"Summarise our last session into a lorex skill"**
-1. Run `lorex create <name> -d "<description>"`
-2. Distil the session into well-structured markdown and write it to the skill file
-3. Done — no manual wiring needed
-
-**"Install skills from the registry"**
-```sh
-lorex list                        # see what is available
-lorex install <skill-name>        # install a specific skill
-lorex install                     # interactive multi-select picker
-```
-
-**"Share this skill with the team"**
-```sh
-lorex publish <skill-name>        # pushes to the registry, converts to a symlink
-```
-
----
-
-## Skill File Format
-
-A skill file is `skill.md` inside `.lorex/skills/<name>/`. The YAML frontmatter is at the top:
+A lorex skill lives at `.lorex/skills/<name>/SKILL.md`.
 
 ```markdown
 ---
 name: my-skill
-description: One sentence — shown in `lorex list` and the injected index.
+description: One sentence used by agents to decide when this skill matters
 version: 1.0.0
 tags: topic, subtopic
 owner: team-or-person
@@ -117,54 +81,50 @@ owner: team-or-person
 
 # My Skill
 
-Free-form markdown. Write whatever the agent needs to know.
-Headers, code blocks, tables, bullet lists — anything goes.
+Free-form markdown instructions.
 ```
 
 Field notes:
-- `name` and `description` are required — `description` is what appears in the index the agent reads
-- `version` is used by `lorex sync` to detect stale copies; bump it when content changes
-- A skill folder can also contain scripts or other files the agent can invoke (e.g. `check-env.sh`)
 
----
+- `name` and `description` are required
+- `description` is used by agent-native skill systems and Lorex-generated rule wrappers
+- `version` is used by `lorex sync`
+- Lorex still reads legacy `skill.md` files for compatibility
+- A skill directory can include scripts, templates, examples, or other supporting files
 
-## Project Layout
+## Project layout
 
-```
+```text
 .lorex/
-  lorex.json              ← project config: registry URL, adapters, installedSkills list
+  lorex.json
   skills/
     <skill-name>/
-      skill.md            ← the skill content (symlink → registry cache, or local copy)
+      SKILL.md
+      scripts/
+      docs/
 ```
 
-`~/.lorex/cache/<slug>/` — shared registry cache on this machine; symlinks point here.
+Registry-backed skills are symlinked into `.lorex/skills`. Lorex requires symlink support for registry installs and native skill projections.
 
----
+The agent-specific projection folders are derived outputs. The canonical state to commit is `.lorex/lorex.json` plus `.lorex/skills/`; generated adapter folders should usually be gitignored.
 
-## Registry
+## Registry layout
 
-A lorex registry is a plain git repo:
-
-```
+```text
 skills/
   auth-overview/
-    skill.md
+    SKILL.md
   deployment/
-    skill.md
-    deploy.sh
+    SKILL.md
+    scripts/
 ```
-
-Point a project at it with `lorex init <url>` or add `"registry": "<url>"` to `.lorex/lorex.json`.
-
----
 
 ## Troubleshooting
 
 | Symptom | Fix |
 |---|---|
-| Skill not appearing in agent index | Run `lorex refresh`; check the skill name is in `installedSkills` in `.lorex/lorex.json` |
-| `lorex list` / `install` say no registry | Run `lorex init <url>` to connect one, or use `lorex create` for local-only skills |
-| Symlinks not working on Windows | Enable Developer Mode: Settings → System → For developers → Developer Mode |
-| Skill content stale after registry update | Run `lorex sync` |
-| Published skill still shows as local | Run `lorex status` — after publish it should show as `symlink` |
+| Skill not appearing in an agent | Run `lorex refresh` |
+| Old `AGENTS.md` / `CLAUDE.md` files still exist | Lorex removes its legacy managed block during refresh; delete the file if it is now empty |
+| Symlinks not working on Windows | Enable Developer Mode or otherwise allow symlink creation; lorex requires symlinks for registry installs and native skill projections |
+| Gemini not loading lorex skills | Confirm `.gemini/settings.json` exists and `context.loadFromIncludeDirectories` is `true` |
+| Published skill still shows as local | Run `lorex status`; registry-backed installs should show as `symlink` when available |

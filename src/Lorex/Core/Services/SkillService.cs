@@ -65,7 +65,7 @@ public sealed class SkillService(RegistryService registry)
     // ── Uninstall ─────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Removes a skill symlink/copy from .lorex/skills and records the removal in lorex.json.
+    /// Removes a skill directory or symlink from .lorex/skills and records the removal in lorex.json.
     /// Does not touch the registry cache.
     /// </summary>
     public void UninstallSkill(string projectRoot, string skillName)
@@ -86,11 +86,10 @@ public sealed class SkillService(RegistryService registry)
     // ── Install ───────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Creates a symlink .lorex/skills/&lt;name&gt; → registry cache path.
-    /// Falls back to a file copy if symlinks are unavailable (e.g. Windows without Developer Mode).
-    /// Records the skill in lorex.json.
+    /// Creates a symlink .lorex/skills/&lt;name&gt; → registry cache path and records the skill in lorex.json.
+    /// Symlinks are required for registry installs.
     /// </summary>
-    public bool InstallSkill(string projectRoot, string skillName)
+    public void InstallSkill(string projectRoot, string skillName)
     {
         var config = ReadConfig(projectRoot);
         if (config.Registry is null)
@@ -105,9 +104,11 @@ public sealed class SkillService(RegistryService registry)
         if (Directory.Exists(linkPath))
             Directory.Delete(linkPath, recursive: true);
 
-        var usedSymlink = TryCreateSymlink(linkPath, sourcePath);
-        if (!usedSymlink)
-            CopySkillFolder(sourcePath, linkPath);
+        if (!TryCreateSymlink(linkPath, sourcePath))
+        {
+            throw new InvalidOperationException(
+                "Lorex requires symlink support for installed registry skills. Enable symlinks and try again.");
+        }
 
         if (!config.InstalledSkills.Contains(skillName, StringComparer.OrdinalIgnoreCase))
         {
@@ -117,14 +118,12 @@ public sealed class SkillService(RegistryService registry)
             });
         }
 
-        return usedSymlink;
     }
 
     // ── Sync ──────────────────────────────────────────────────────────────────
 
     /// <summary>
     /// Pulls the registry cache so all symlinked skills automatically reflect updates.
-    /// For copy-based installs (symlink fallback), re-copies skills whose version changed.
     /// Returns skill names that were updated.
     /// </summary>
     public IReadOnlyList<string> SyncSkills(string projectRoot)
@@ -141,10 +140,8 @@ public sealed class SkillService(RegistryService registry)
         {
             var linkPath = SkillDir(projectRoot, skillName);
 
-            // If this is a real symlink, the pull above already updated it — just report it
             if (IsSymlink(linkPath))
             {
-                // Verify the symlink target still exists (skill not deleted from registry)
                 var target = new DirectoryInfo(linkPath).LinkTarget;
                 if (target is not null && Directory.Exists(target))
                 {
@@ -159,18 +156,14 @@ public sealed class SkillService(RegistryService registry)
                 continue;
             }
 
-            // Copy-based fallback: update if version changed
             var sourcePath = registry.FindSkillPath(config.Registry, skillName);
             if (sourcePath is null) continue;
 
-            var sourceVersion = GetVersion(sourcePath);
-            var localVersion = Directory.Exists(linkPath) ? GetVersion(linkPath) : null;
+            if (Directory.Exists(linkPath))
+                Directory.Delete(linkPath, recursive: true);
 
-            if (sourceVersion != localVersion)
-            {
-                CopySkillFolder(sourcePath, linkPath);
-                updated.Add(skillName);
-            }
+            InstallSkill(projectRoot, skillName);
+            updated.Add(skillName);
         }
 
         return updated;
@@ -225,9 +218,9 @@ public sealed class SkillService(RegistryService registry)
         var dir = SkillDir(projectRoot, name);
         Directory.CreateDirectory(dir);
 
-        var skillPath = Path.Combine(dir, "skill.md");
+        var skillPath = SkillFileConvention.CanonicalPath(dir);
 
-        if (File.Exists(skillPath))
+        if (SkillFileConvention.ResolveEntryPath(dir) is not null)
             throw new InvalidOperationException($"Skill '{name}' already exists at {dir}");
 
         File.WriteAllText(skillPath, BuildSkillWithFrontmatter(name, description, tags, owner));
@@ -247,6 +240,22 @@ public sealed class SkillService(RegistryService registry)
 
     public string SkillDir(string projectRoot, string skillName) =>
         Path.Combine(projectRoot, LorexDir, "skills", skillName);
+
+    /// <summary>
+    /// Returns all skill directory names currently present under <c>.lorex/skills</c>.
+    /// </summary>
+    public IReadOnlyList<string> DiscoverInstalledSkillNames(string projectRoot)
+    {
+        var skillsDir = Path.Combine(projectRoot, LorexDir, "skills");
+        if (!Directory.Exists(skillsDir))
+            return [];
+
+        return [.. Directory.EnumerateDirectories(skillsDir)
+            .Select(Path.GetFileName)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)!];
+    }
 
     /// <summary>Returns skill names in .lorex/skills/ that are real directories (not symlinks), i.e. locally authored, unpublished skills.
     /// Built-in skills (embedded in the binary) are excluded.</summary>
@@ -297,28 +306,10 @@ public sealed class SkillService(RegistryService registry)
         Directory.CreateDirectory(destination);
 
         foreach (var file in Directory.EnumerateFiles(source))
-            File.Copy(file, Path.Combine(destination, Path.GetFileName(file)));
-    }
+            File.Copy(file, Path.Combine(destination, Path.GetFileName(file)), overwrite: true);
 
-    private static string? GetVersion(string skillDir)
-    {
-        // Prefer frontmatter in skill.md (new format)
-        var skillMd = Path.Combine(skillDir, "skill.md");
-        if (File.Exists(skillMd))
-        {
-            var yaml = SimpleYamlParser.ExtractFrontmatterYaml(File.ReadAllText(skillMd));
-            if (yaml is not null)
-            {
-                var dict = SimpleYamlParser.ParseToDictionary(yaml);
-                if (dict.TryGetValue("version", out var v)) return v;
-            }
-        }
-
-        // Fallback: legacy metadata.yaml
-        var metaFile = Path.Combine(skillDir, "metadata.yaml");
-        if (!File.Exists(metaFile)) return null;
-        var legacyDict = SimpleYamlParser.ParseToDictionary(File.ReadAllText(metaFile));
-        return legacyDict.TryGetValue("version", out var lv) ? lv : null;
+        foreach (var dir in Directory.EnumerateDirectories(source))
+            CopySkillFolder(dir, Path.Combine(destination, Path.GetFileName(dir)));
     }
 
     private static string BuildSkillWithFrontmatter(string name, string description, string[] tags, string owner) =>

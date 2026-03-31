@@ -1,14 +1,17 @@
 namespace Lorex.Core.Adapters;
 
-/// <summary>Adapter for Windsurf (Codeium) — injects the skill index into <c>.windsurfrules</c>.</summary>
+/// <summary>Adapter for Windsurf — projects lorex skills into <c>.windsurf/skills</c>.</summary>
 public sealed class WindsurfAdapter : IAdapter
 {
-    /// <inheritdoc/>
     public string Name => "windsurf";
-    /// <inheritdoc/>
-    public string TargetFilePath(string projectRoot) =>
-        Path.Combine(projectRoot, ".windsurfrules");
-    /// <inheritdoc/>
+
+    public AdapterProjection GetProjection(string projectRoot) =>
+        new SkillDirectoryProjection(Path.Combine(projectRoot, ".windsurf", "skills"));
+
     public bool DetectExisting(string projectRoot) =>
-        File.Exists(TargetFilePath(projectRoot));
+        Directory.Exists(Path.Combine(projectRoot, ".windsurf", "skills")) ||
+        File.Exists(Path.Combine(projectRoot, ".windsurfrules"));
+
+    public IReadOnlyList<string> LegacyPaths(string projectRoot) =>
+        [Path.Combine(projectRoot, ".windsurfrules")];
 }

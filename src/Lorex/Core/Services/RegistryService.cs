@@ -48,9 +48,8 @@ public sealed class RegistryService(GitService git)
         var results = new List<SkillMetadata>();
         foreach (var dir in Directory.EnumerateDirectories(skillsRoot))
         {
-            // New format: YAML frontmatter in skill.md
-            var skillMd = Path.Combine(dir, "skill.md");
-            if (File.Exists(skillMd))
+            var skillMd = SkillFileConvention.ResolveEntryPath(dir);
+            if (skillMd is not null)
             {
                 try
                 {

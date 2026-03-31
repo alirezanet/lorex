@@ -9,7 +9,7 @@ public static class PublishCommand
     /// <summary>Runs the command. Returns 0 on success, 1 if any publish failed.</summary>
     public static int Run(string[] args)
     {
-        var projectRoot = Directory.GetCurrentDirectory();
+        var projectRoot = ProjectRootLocator.ResolveForExistingProject(Directory.GetCurrentDirectory());
         var builtIns = BuiltInSkillService.SkillNames().ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         try

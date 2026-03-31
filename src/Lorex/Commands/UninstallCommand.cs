@@ -16,7 +16,7 @@ public static class UninstallCommand
         }
 
         var skillName = args[0];
-        var projectRoot = Directory.GetCurrentDirectory();
+        var projectRoot = ProjectRootLocator.ResolveForExistingProject(Directory.GetCurrentDirectory());
 
         try
         {
@@ -30,9 +30,9 @@ public static class UninstallCommand
 
             ServiceFactory.Skills.UninstallSkill(projectRoot, skillName);
 
-            // Re-compile index so the removed skill is no longer referenced
+            // Re-project adapter outputs so the removed skill disappears from native agent integrations
             var updated = ServiceFactory.Skills.ReadConfig(projectRoot);
-            ServiceFactory.Adapters.Compile(projectRoot, updated);
+            ServiceFactory.Adapters.Project(projectRoot, updated);
 
             AnsiConsole.MarkupLine("[green]✓[/] Uninstalled [bold]{0}[/]", Markup.Escape(skillName));
             return 0;

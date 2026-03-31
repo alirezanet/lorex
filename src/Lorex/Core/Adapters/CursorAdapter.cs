@@ -1,14 +1,17 @@
 namespace Lorex.Core.Adapters;
 
-/// <summary>Adapter for Cursor — injects the skill index into <c>.cursorrules</c>.</summary>
+/// <summary>Adapter for Cursor — projects lorex skills into <c>.cursor/rules</c>.</summary>
 public sealed class CursorAdapter : IAdapter
 {
-    /// <inheritdoc/>
     public string Name => "cursor";
-    /// <inheritdoc/>
-    public string TargetFilePath(string projectRoot) =>
-        Path.Combine(projectRoot, ".cursorrules");
-    /// <inheritdoc/>
+
+    public AdapterProjection GetProjection(string projectRoot) =>
+        new CursorRulesProjection(Path.Combine(projectRoot, ".cursor", "rules"));
+
     public bool DetectExisting(string projectRoot) =>
-        File.Exists(TargetFilePath(projectRoot));
+        Directory.Exists(Path.Combine(projectRoot, ".cursor", "rules")) ||
+        File.Exists(Path.Combine(projectRoot, ".cursorrules"));
+
+    public IReadOnlyList<string> LegacyPaths(string projectRoot) =>
+        [Path.Combine(projectRoot, ".cursorrules")];
 }

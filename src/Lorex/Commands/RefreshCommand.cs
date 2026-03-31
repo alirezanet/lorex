@@ -4,8 +4,8 @@ using Spectre.Console;
 namespace Lorex.Commands;
 
 /// <summary>
-/// Implements <c>lorex refresh [--target adapter]</c>: re-injects the skill index into agent config files
-/// without fetching from the registry. Useful after manually editing a skill or changing adapter selection.
+/// Implements <c>lorex refresh [--target adapter]</c>: re-projects lorex skills into native agent surfaces
+/// without fetching from the registry.
 /// </summary>
 public static class RefreshCommand
 {
@@ -23,18 +23,18 @@ public static class RefreshCommand
             }
         }
 
-        var projectRoot = Directory.GetCurrentDirectory();
+        var projectRoot = ProjectRootLocator.ResolveForExistingProject(Directory.GetCurrentDirectory());
 
         try
         {
             var config = ServiceFactory.Skills.ReadConfig(projectRoot);
 
             if (target is not null)
-                ServiceFactory.Adapters.CompileTarget(projectRoot, config, target);
+                ServiceFactory.Adapters.ProjectTarget(projectRoot, config, target);
             else
-                ServiceFactory.Adapters.Compile(projectRoot, config);
+                ServiceFactory.Adapters.Project(projectRoot, config);
 
-            AnsiConsole.MarkupLine("[green]✓[/] Skill index refreshed in [bold]{0}[/].", target ?? "all adapters");
+            AnsiConsole.MarkupLine("[green]✓[/] Lorex projections refreshed for [bold]{0}[/].", target ?? "all adapters");
             return 0;
         }
         catch (Exception ex)

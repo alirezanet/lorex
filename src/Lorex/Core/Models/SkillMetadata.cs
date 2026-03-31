@@ -1,6 +1,6 @@
 namespace Lorex.Core.Models;
 
-/// <summary>Metadata for a lorex skill, parsed from YAML frontmatter in <c>skill.md</c>.</summary>
+/// <summary>Metadata for a lorex skill, parsed from YAML frontmatter in <c>SKILL.md</c> or the legacy <c>skill.md</c>.</summary>
 public sealed record SkillMetadata
 {
     /// <summary>Unique identifier for the skill (kebab-case, e.g. <c>auth-overview</c>).</summary>

@@ -9,7 +9,7 @@ public static class InstallCommand
     /// <summary>Runs the command. Returns 0 on success, 1 on failure.</summary>
     public static int Run(string[] args)
     {
-        var projectRoot = Directory.GetCurrentDirectory();
+        var projectRoot = ProjectRootLocator.ResolveForExistingProject(Directory.GetCurrentDirectory());
 
         try
         {
@@ -33,42 +33,24 @@ public static class InstallCommand
                 return 0;
             }
 
-            var results = new List<(string SkillName, bool UsedSymlink)>();
             AnsiConsole.Status()
                 .Start("Installing skills...", ctx =>
                 {
                     foreach (var skillName in requestedSkills)
                     {
                         ctx.Status($"Installing [bold]{skillName}[/]...");
-                        var usedSymlink = ServiceFactory.Skills.InstallSkill(projectRoot, skillName);
-                        results.Add((skillName, usedSymlink));
+                        ServiceFactory.Skills.InstallSkill(projectRoot, skillName);
                     }
 
                     ctx.Spinner(Spinner.Known.Dots);
-                    ctx.Status("Compiling skill index...");
+                    ctx.Status("Projecting skills into native agent locations...");
                     var config = ServiceFactory.Skills.ReadConfig(projectRoot);
-                    ServiceFactory.Adapters.Compile(projectRoot, config);
+                    ServiceFactory.Adapters.Project(projectRoot, config);
                 });
 
-            var printedCopyGuidance = false;
-            foreach (var (skillName, usedSymlink) in results)
+            foreach (var skillName in requestedSkills)
             {
-                if (usedSymlink)
-                {
-                    AnsiConsole.MarkupLine($"[green]✓[/] Installed [bold]{skillName}[/] [dim](symlinked)[/]");
-                }
-                else
-                {
-                    AnsiConsole.MarkupLine($"[green]✓[/] Installed [bold]{skillName}[/] [yellow](copied)[/]");
-
-                    // Give the user actionable guidance if Developer Mode is the reason symlinks failed.
-                    if (!printedCopyGuidance && OperatingSystem.IsWindows() && !WindowsDevModeHelper.IsSymlinkAvailable())
-                    {
-                        WindowsDevModeHelper.PrintDevModeGuidance();
-                        WindowsDevModeHelper.OfferToOpenSettings();
-                        printedCopyGuidance = true;
-                    }
-                }
+                AnsiConsole.MarkupLine($"[green]✓[/] Installed [bold]{skillName}[/] [dim](symlinked)[/]");
             }
 
             return 0;
@@ -76,6 +58,11 @@ public static class InstallCommand
         catch (Exception ex)
         {
             AnsiConsole.MarkupLine("[red]Error:[/] {0}", Markup.Escape(ex.Message));
+            if (OperatingSystem.IsWindows() && !WindowsDevModeHelper.IsSymlinkAvailable())
+            {
+                WindowsDevModeHelper.PrintDevModeGuidance();
+                WindowsDevModeHelper.OfferToOpenSettings();
+            }
             return 1;
         }
     }

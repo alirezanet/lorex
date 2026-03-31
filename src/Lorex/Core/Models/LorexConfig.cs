@@ -9,7 +9,7 @@ public sealed record LorexConfig
     /// <summary>Git URL of the skill registry this project is connected to. Null when running registry-free (local-only mode).</summary>
     public string? Registry { get; init; }
 
-    /// <summary>Adapter names whose config files receive the injected skill index (e.g. <c>copilot</c>, <c>codex</c>).</summary>
+    /// <summary>Adapter names whose native integration surfaces lorex maintains (for example <c>copilot</c>, <c>codex</c>).</summary>
     public string[] Adapters { get; init; } = [];
 
     /// <summary>Skill names that have been installed into this project.</summary>

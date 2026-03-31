@@ -1,3 +1,4 @@
+using Lorex.Core.Services;
 using Spectre.Console;
 
 namespace Lorex.Commands;
@@ -13,7 +14,7 @@ public static class CreateCommand
     /// </remarks>
     public static int Run(string[] args)
     {
-        var projectRoot = Directory.GetCurrentDirectory();
+        var projectRoot = ProjectRootLocator.ResolveForExistingProject(Directory.GetCurrentDirectory());
 
         // ── Parse flags ───────────────────────────────────────────────────────
         string? nameArg = null, descArg = null, tagsArg = null, ownerArg = null;
@@ -68,15 +69,15 @@ public static class CreateCommand
             ServiceFactory.Skills.ScaffoldSkill(projectRoot, name, description, tags, owner);
 
             var config = ServiceFactory.Skills.ReadConfig(projectRoot);
-            ServiceFactory.Adapters.Compile(projectRoot, config);
+            ServiceFactory.Adapters.Project(projectRoot, config);
 
             var skillDir = ServiceFactory.Skills.SkillDir(projectRoot, name);
             AnsiConsole.WriteLine();
             AnsiConsole.MarkupLine("[green]✓[/] Skill created at [dim]{0}[/]", skillDir);
             AnsiConsole.WriteLine();
             AnsiConsole.MarkupLine("[bold]Next steps:[/]");
-            AnsiConsole.MarkupLine("  1. Ask your AI agent to author [bold]{0}/skill.md[/], or edit it yourself", skillDir);
-            AnsiConsole.MarkupLine("  2. The skill is already active locally and included in the lorex index");
+            AnsiConsole.MarkupLine("  1. Ask your AI agent to author [bold]{0}/{1}[/], or edit it yourself", skillDir, SkillFileConvention.CanonicalFileName);
+            AnsiConsole.MarkupLine("  2. The skill is already active locally and projected into configured agent integrations");
             AnsiConsole.MarkupLine("  3. When ready to share, run [bold]lorex publish {0}[/] to push it to the registry", name);
             AnsiConsole.WriteLine();
             return 0;

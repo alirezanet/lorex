@@ -36,7 +36,7 @@ internal static class BuiltInSkillService
 
     /// <summary>
     /// Installs all built-in skills into <c>.lorex/skills/</c> of the project.
-    /// Writes the skill file directly (no registry or symlink needed).
+    /// Writes the canonical <c>SKILL.md</c> file directly (no registry or symlink needed).
     /// Skips any skill that is already installed via the registry.
     /// </summary>
     internal static List<string> InstallAll(string projectRoot, Lorex.Core.Models.LorexConfig config)
@@ -53,7 +53,10 @@ internal static class BuiltInSkillService
 
             var skillDir = Path.Combine(projectRoot, ".lorex", "skills", skillName);
             Directory.CreateDirectory(skillDir);
-            File.WriteAllText(Path.Combine(skillDir, "skill.md"), content);
+            if (SkillFileConvention.ResolveEntryPath(skillDir) is not null)
+                continue;
+
+            File.WriteAllText(SkillFileConvention.CanonicalPath(skillDir), content);
             installed.Add(skillName);
         }
 

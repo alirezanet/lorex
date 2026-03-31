@@ -5,7 +5,7 @@ using Spectre.Console;
 
 namespace Lorex.Commands;
 
-/// <summary>Implements <c>lorex init</c>: configures a skill registry, selects adapters, and injects the initial skill index.</summary>
+/// <summary>Implements <c>lorex init</c>: configures a skill registry, selects adapters, and projects built-in skills into native agent locations.</summary>
 public static class InitCommand
 {
     /// <summary>Runs the command. Returns 0 on success, 1 on failure.</summary>
@@ -16,7 +16,7 @@ public static class InitCommand
     /// </remarks>
     public static int Run(string[] args)
     {
-        var projectRoot = Directory.GetCurrentDirectory();
+        var projectRoot = ProjectRootLocator.ResolveForInit(Directory.GetCurrentDirectory());
 
         // ── Parse flags ───────────────────────────────────────────────────────
         // Accept: lorex init <url> [--adapters a,b,c]
@@ -143,7 +143,7 @@ public static class InitCommand
             var defaultAdapters = detected.Count > 0 ? detected : ["copilot", "codex"];
 
             var prompt = new MultiSelectionPrompt<string>()
-                .Title("[bold]Which AI agent config files should lorex inject the skill index into?[/]")
+                .Title("[bold]Which AI agent integrations should lorex maintain?[/]")
                 .AddChoices(adapterChoices);
 
             foreach (var a in defaultAdapters)
@@ -154,7 +154,7 @@ public static class InitCommand
 
         if (selectedAdapters.Count == 0)
         {
-            AnsiConsole.MarkupLine("[yellow]No adapters selected — lorex will not inject into any config file.[/]");
+            AnsiConsole.MarkupLine("[yellow]No adapters selected — lorex will not project skills into any agent-specific location.[/]");
         }
 
         // ── Write lorex.json ──────────────────────────────────────────────────
@@ -171,27 +171,33 @@ public static class InitCommand
 
         // ── Install built-in skills (bundled in the binary) ───────────────────
         var builtIns = BuiltInSkillService.InstallAll(projectRoot, config);
-        if (builtIns.Count > 0)
+        var discoveredSkills = ServiceFactory.Skills.DiscoverInstalledSkillNames(projectRoot);
+        if (builtIns.Count > 0 || discoveredSkills.Count > 0)
         {
-            // Add built-ins to InstalledSkills so they appear in the agent index
-            config = config with { InstalledSkills = [.. config.InstalledSkills, .. builtIns] };
+            config = config with
+            {
+                InstalledSkills = [.. config.InstalledSkills
+                    .Concat(builtIns)
+                    .Concat(discoveredSkills)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)]
+            };
             ServiceFactory.Skills.WriteConfig(projectRoot, config);
         }
 
-        // ── Compile (inject index) ────────────────────────────────────────────
-        ServiceFactory.Adapters.Compile(projectRoot, config);
+        // ── Project built-in skills into native agent surfaces ────────────────
+        ServiceFactory.Adapters.Project(projectRoot, config);
 
         AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine("[green]✓[/] lorex initialised. Skill index injected into:");
+        AnsiConsole.MarkupLine("[green]✓[/] lorex initialised. Native agent projections updated:");
         foreach (var name in selectedAdapters)
         {
-            if (AdapterService.KnownAdapters.TryGetValue(name, out var adapter))
-                AnsiConsole.MarkupLine("  [dim]{0}[/]", adapter.TargetFilePath(projectRoot));
+            foreach (var target in ServiceFactory.Adapters.DescribeTargets(projectRoot, name))
+                AnsiConsole.MarkupLine("  [dim]{0}[/]", target);
         }
         if (builtIns.Count > 0)
         {
             AnsiConsole.WriteLine();
-            AnsiConsole.MarkupLine("[dim]Built-in skills installed (your agent now knows how to use lorex):[/]");
+            AnsiConsole.MarkupLine("[dim]Built-in skills installed:[/]");
             foreach (var s in builtIns)
                 AnsiConsole.MarkupLine("  [dim]•[/] {0}", s);
         }

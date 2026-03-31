@@ -33,8 +33,20 @@ Thumbs.db
 # dotnet tool local manifest outputs (user installs via dotnet tool install)
 .config/dotnet-tools.json
 
-# lorex local state — commit project config and authored skills, ignore auto-managed built-ins
-.lorex/skills/lorex/
+# lorex local state
+.dotnet/
+
+# lorex-generated agent projections
+.agents/skills/
+.claude/skills/
+.cline/skills/
+.github/skills/
+.windsurf/skills/
+.opencode/skills/
+skills/
+.cursor/rules/lorex-*.mdc
+.roo/rules-code/lorex-*.md
+.gemini/settings.json
 
 # Internal idea/planning notes
 *-Idea.md

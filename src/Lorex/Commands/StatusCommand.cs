@@ -1,3 +1,4 @@
+using Lorex.Core.Services;
 using Spectre.Console;
 
 namespace Lorex.Commands;
@@ -8,7 +9,7 @@ public static class StatusCommand
     /// <summary>Runs the command. Returns 0 on success, 1 on failure.</summary>
     public static int Run(string[] args)
     {
-        var projectRoot = Directory.GetCurrentDirectory();
+        var projectRoot = ProjectRootLocator.ResolveForExistingProject(Directory.GetCurrentDirectory());
 
         try
         {
@@ -20,6 +21,23 @@ public static class StatusCommand
             AnsiConsole.MarkupLine("[bold]Adapters:[/] [dim]{0}[/]",
                 config.Adapters.Length > 0 ? string.Join(", ", config.Adapters) : "none");
             AnsiConsole.WriteLine();
+
+            if (config.Adapters.Length > 0)
+            {
+                var adapterTable = new Table()
+                    .Border(TableBorder.Rounded)
+                    .AddColumn("[bold]Adapter[/]")
+                    .AddColumn("[bold]Target[/]");
+
+                foreach (var adapterName in config.Adapters)
+                {
+                    foreach (var target in ServiceFactory.Adapters.DescribeTargets(projectRoot, adapterName))
+                        adapterTable.AddRow(adapterName, Markup.Escape(target));
+                }
+
+                AnsiConsole.Write(adapterTable);
+                AnsiConsole.WriteLine();
+            }
 
             if (config.InstalledSkills.Length == 0)
             {

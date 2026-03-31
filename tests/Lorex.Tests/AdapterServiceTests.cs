@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Lorex.Core.Models;
 using Lorex.Core.Services;
 
@@ -12,102 +13,80 @@ public sealed class AdapterServiceTests
         InstalledSkills = skills,
     };
 
-    // ── ReplaceOrAppend ───────────────────────────────────────────────────────
-
     [Fact]
-    public void ReplaceOrAppend_EmptyFile_ReturnsBlockWithNewline()
-    {
-        var result = AdapterService.ReplaceOrAppend(string.Empty, "<!-- lorex:start -->\nindex\n<!-- lorex:end -->");
-        Assert.Contains("<!-- lorex:start -->", result);
-        Assert.Contains("<!-- lorex:end -->", result);
-    }
-
-    [Fact]
-    public void ReplaceOrAppend_ExistingContent_NoBlock_AppendsWithBlankLine()
-    {
-        const string existing = "# My Agents file\n\nSome existing content.";
-        var result = AdapterService.ReplaceOrAppend(existing, "<!-- lorex:start -->\nnew\n<!-- lorex:end -->");
-
-        Assert.StartsWith("# My Agents file", result);
-        Assert.Contains("<!-- lorex:start -->", result);
-        // Block must appear after existing content, with at least one blank line separator
-        var contentIdx = result.IndexOf("Some existing content.", StringComparison.Ordinal);
-        var blockIdx   = result.IndexOf("<!-- lorex:start -->", StringComparison.Ordinal);
-        Assert.True(contentIdx < blockIdx, "Lorex block must appear after existing content");
-        // There should be at least 2 newline characters between existing content and the block
-        var between = result[contentIdx..blockIdx];
-        Assert.True(between.Count(c => c == '\n') >= 2, "Expected at least one blank line before lorex block");
-    }
-
-    [Fact]
-    public void ReplaceOrAppend_ExistingBlock_ReplacesInPlace()
+    public void RemoveLegacyBlock_WhenMarkersPresent_RemovesLorexSection()
     {
         const string existing = """
-            # Agents
-
-            Some content.
+            Before
 
             <!-- lorex:start -->
-            ## Old index
+            old block
             <!-- lorex:end -->
 
-            After block.
+            After
             """;
 
-        var result = AdapterService.ReplaceOrAppend(existing, "<!-- lorex:start -->\nnew index\n<!-- lorex:end -->");
+        var updated = AdapterService.RemoveLegacyBlock(existing);
 
-        Assert.Contains("new index", result);
-        Assert.DoesNotContain("Old index", result);
-        Assert.Contains("After block.", result);
-        Assert.Contains("Some content.", result);
+        Assert.DoesNotContain("old block", updated);
+        Assert.Contains("Before", updated);
+        Assert.Contains("After", updated);
     }
 
     [Fact]
-    public void ReplaceOrAppend_ExistingBlock_PreservesContentAfterBlock()
+    public void CleanupLegacyFile_WhenOnlyLorexBlockExists_DeletesFile()
     {
-        const string existing = "before\n<!-- lorex:start -->\nold\n<!-- lorex:end -->\nafter";
-        var result = AdapterService.ReplaceOrAppend(existing, "<!-- lorex:start -->\nnew\n<!-- lorex:end -->");
+        var tempDir = Path.Combine(Path.GetTempPath(), $"lorex-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        var filePath = Path.Combine(tempDir, "AGENTS.md");
 
-        Assert.StartsWith("before\n", result);
-        Assert.EndsWith("\nafter", result.TrimEnd('\r', '\n') + "\nafter".Substring("\nafter".Length - "\nafter".Length));
-        Assert.Contains("new", result);
-        Assert.Contains("after", result);
+        try
+        {
+            File.WriteAllText(filePath, """
+                <!-- lorex:start -->
+                block
+                <!-- lorex:end -->
+                """);
+
+            AdapterService.CleanupLegacyFile(filePath);
+
+            Assert.False(File.Exists(filePath));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, recursive: true);
+        }
     }
 
-    // ── BuildIndexBlock ───────────────────────────────────────────────────────
-
     [Fact]
-    public void BuildIndexBlock_NoSkills_ContainsNoSkillsMessage()
-    {
-        var service = new AdapterService();
-        var config = MakeConfig();
-
-        var block = service.BuildIndexBlock(Path.GetTempPath(), config);
-
-        Assert.Contains("<!-- lorex:start -->", block);
-        Assert.Contains("<!-- lorex:end -->", block);
-        Assert.Contains("No skills installed", block);
-    }
-
-    [Fact]
-    public void BuildIndexBlock_WithSkills_ContainsSkillEntries()
+    public void RenderCursorRule_UsesDescriptionAndBodyFromSkill()
     {
         var service = new AdapterService();
         var projectRoot = Path.Combine(Path.GetTempPath(), $"lorex-test-{Guid.NewGuid():N}");
+
         try
         {
-            // New format: frontmatter in skill.md
             var skillDir = Path.Combine(projectRoot, ".lorex", "skills", "auth-overview");
             Directory.CreateDirectory(skillDir);
-            File.WriteAllText(Path.Combine(skillDir, "skill.md"),
-                "---\nname: auth-overview\ndescription: Auth flows and constraints\nversion: 1.0.0\n---\n\n# auth-overview\n");
+            File.WriteAllText(Path.Combine(skillDir, "SKILL.md"),
+                """
+                ---
+                name: auth-overview
+                description: Auth flows and constraints
+                version: 1.0.0
+                ---
 
-            var config = MakeConfig("auth-overview");
-            var block = service.BuildIndexBlock(projectRoot, config);
+                # auth-overview
 
-            Assert.Contains("auth-overview", block);
-            Assert.Contains("Auth flows and constraints", block);
-            Assert.Contains(".lorex/skills/auth-overview/skill.md", block);
+                Always validate tokens.
+                """);
+
+            var rendered = service.RenderCursorRule(projectRoot, "auth-overview");
+
+            Assert.Contains("description: \"Auth flows and constraints\"", rendered);
+            Assert.Contains("Always validate tokens.", rendered);
+            Assert.DoesNotContain("version: 1.0.0", rendered);
         }
         finally
         {
@@ -117,24 +96,28 @@ public sealed class AdapterServiceTests
     }
 
     [Fact]
-    public void BuildIndexBlock_SkillWithLegacyMetadataYaml_FallsBackGracefully()
+    public void UpdateGeminiSettings_PopulatesLorexSkillDirectories()
     {
         var service = new AdapterService();
         var projectRoot = Path.Combine(Path.GetTempPath(), $"lorex-test-{Guid.NewGuid():N}");
+
         try
         {
-            // Legacy format: separate metadata.yaml (no frontmatter in skill.md)
-            var skillDir = Path.Combine(projectRoot, ".lorex", "skills", "legacy-skill");
-            Directory.CreateDirectory(skillDir);
-            File.WriteAllText(Path.Combine(skillDir, "metadata.yaml"),
-                "name: legacy-skill\ndescription: Legacy description\nversion: 1.0.0\n");
-            File.WriteAllText(Path.Combine(skillDir, "skill.md"), "# legacy-skill\n\nContent.\n");
+            var settingsPath = Path.Combine(projectRoot, ".gemini", "settings.json");
+            var config = MakeConfig("lorex", "architecture");
 
-            var config = MakeConfig("legacy-skill");
-            var block = service.BuildIndexBlock(projectRoot, config);
+            service.UpdateGeminiSettings(projectRoot, config, settingsPath);
 
-            Assert.Contains("legacy-skill", block);
-            Assert.Contains("Legacy description", block);
+            var root = JsonNode.Parse(File.ReadAllText(settingsPath))!.AsObject();
+            var context = root["context"]!.AsObject();
+            var fileNames = context["fileName"]!.AsArray().Select(node => node!.GetValue<string>()).ToArray();
+            var includeDirectories = context["includeDirectories"]!.AsArray().Select(node => node!.GetValue<string>()).ToArray();
+
+            Assert.Contains("SKILL.md", fileNames);
+            Assert.Contains("skill.md", fileNames);
+            Assert.Contains(".lorex/skills/lorex", includeDirectories);
+            Assert.Contains(".lorex/skills/architecture", includeDirectories);
+            Assert.True(context["loadFromIncludeDirectories"]!.GetValue<bool>());
         }
         finally
         {
@@ -144,43 +127,36 @@ public sealed class AdapterServiceTests
     }
 
     [Fact]
-    public void BuildIndexBlock_SkillWithEmbeddedTools_ListsToolsLine()
+    public void IsLorexManagedProjection_IsTrueOnlyForSymlinkIntoLorexSkills()
     {
-        var service = new AdapterService();
         var projectRoot = Path.Combine(Path.GetTempPath(), $"lorex-test-{Guid.NewGuid():N}");
+
         try
         {
-            var skillDir = Path.Combine(projectRoot, ".lorex", "skills", "db-migrations");
-            Directory.CreateDirectory(skillDir);
-            File.WriteAllText(Path.Combine(skillDir, "skill.md"),
-                "---\nname: db-migrations\ndescription: Database migration patterns\nversion: 1.0.0\n---\n\n# db-migrations\n");
-            // Embedded tool files
-            File.WriteAllText(Path.Combine(skillDir, "run-migration.ps1"), "# migration script");
-            File.WriteAllText(Path.Combine(skillDir, "rollback.sh"), "#!/bin/bash");
+            var lorexSkillsRoot = Path.Combine(projectRoot, ".lorex", "skills");
+            var sourceDir = Path.Combine(lorexSkillsRoot, "lorex");
+            var targetRoot = Path.Combine(projectRoot, ".claude", "skills");
+            var targetDir = Path.Combine(targetRoot, "lorex");
 
-            var config = MakeConfig("db-migrations");
-            var block = service.BuildIndexBlock(projectRoot, config);
+            Directory.CreateDirectory(sourceDir);
+            Directory.CreateDirectory(targetRoot);
+            File.WriteAllText(Path.Combine(sourceDir, "SKILL.md"), "# lorex");
 
-            Assert.Contains("Embedded tools", block);
-            Assert.Contains("run-migration.ps1", block);
-            Assert.Contains("rollback.sh", block);
+            var relativeTarget = Path.GetRelativePath(targetRoot, sourceDir);
+            Directory.CreateSymbolicLink(targetDir, relativeTarget);
+
+            Assert.True(AdapterService.IsLorexManagedProjection(targetDir, lorexSkillsRoot));
+
+            Directory.Delete(targetDir);
+            Directory.CreateDirectory(targetDir);
+            File.WriteAllText(Path.Combine(targetDir, "SKILL.md"), "# user");
+
+            Assert.False(AdapterService.IsLorexManagedProjection(targetDir, lorexSkillsRoot));
         }
         finally
         {
             if (Directory.Exists(projectRoot))
                 Directory.Delete(projectRoot, recursive: true);
         }
-    }
-
-    [Fact]
-    public void BuildIndexBlock_SkillPathUseForwardSlashes()
-    {
-        var service = new AdapterService();
-        var config = MakeConfig("my-skill");
-
-        var block = service.BuildIndexBlock(Path.GetTempPath(), config);
-
-        // Paths injected into markdown must use forward slashes (cross-platform + agent readability)
-        Assert.DoesNotContain(".lorex\\skills", block);
     }
 }

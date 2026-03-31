@@ -1,21 +1,19 @@
 # lorex
 
-### The Shared Knowledge Registry for AI Agents.
+### The Shared Knowledge Registry for AI Agents and People.
 
-**Stop repeating yourself to AI.** Lorex turns your architecture notes, conventions, and runbooks into version-controlled "Skills" that every AI agent—Cursor, Claude, Copilot, Gemini, and more—can use instantly.
+**Stop repeating yourself to AI.** Lorex turns your architecture notes, conventions, and runbooks into version-controlled "Skills" that every AI agent understand. 
 
 [![CI](https://github.com/alirezanet/lorex/actions/workflows/ci.yml/badge.svg)](https://github.com/alirezanet/lorex/actions/workflows/ci.yml)
-[![.NET 10](https://img.shields.io/badge/.NET-10-blue)](#install)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](#license)
-[![Status](https://img.shields.io/badge/status-early%20beta-orange.svg)](#help-shape-lorex)
+[![Status](https://img.shields.io/badge/status-early%20beta-orange.svg)](#contributing)
 
 -----
 
 ## ⚡ Why Lorex?
-
-  * **Works with every agent:** Add a skill once. Lorex injects a synchronized index into every tool-specific config file (`GEMINI.md`, `CLAUDE.md`, `copilot-instructions.md`, etc.).
+  * **Works with every agent:** Add a skill once. Lorex projects a synchronized link to your all AI agent tools.
   * **Shared Intelligence:** Build a central "Team Registry" (any Git repo) to share standards (e.g., `security-rules`, `api-conventions`) across your entire organization.
-  * **Zero-Dependency:** Compiled to **Native AOT**. No runtime, no VM, no bulky dependencies. Just a fast, standalone binary.
+  * **Native AOT:** Fast CLI, No runtime, no VM, no bulky dependencies.
 
 -----
 
@@ -64,7 +62,7 @@ You don't need to write documentation manually. Because Lorex installs its own d
 > "Create a lorex skill called `auth-logic`. Analyze our OAuth implementation and capture the core constraints, pitfalls, and flow so we don't forget them."
 
 **The Result:**
-Your AI creates `.lorex/skills/auth-logic/skill.md`. Run `lorex refresh`, and that knowledge is now permanently available to **every** AI agent that opens this repo.
+Your AI creates `.lorex/skills/auth-logic/skill.md`. Run `lorex refresh`, and that knowledge is now permanently available to **every** selected AI agent that opens this repo.
 
 ### 2\. Share Your Wisdom (The Team Registry)
 

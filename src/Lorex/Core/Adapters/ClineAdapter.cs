@@ -1,14 +1,17 @@
 namespace Lorex.Core.Adapters;
 
-/// <summary>Adapter for Cline (VS Code extension) — injects the skill index into <c>.clinerules</c>.</summary>
+/// <summary>Adapter for Cline — projects lorex skills into <c>.cline/skills</c>.</summary>
 public sealed class ClineAdapter : IAdapter
 {
-    /// <inheritdoc/>
     public string Name => "cline";
-    /// <inheritdoc/>
-    public string TargetFilePath(string projectRoot) =>
-        Path.Combine(projectRoot, ".clinerules");
-    /// <inheritdoc/>
+
+    public AdapterProjection GetProjection(string projectRoot) =>
+        new SkillDirectoryProjection(Path.Combine(projectRoot, ".cline", "skills"));
+
     public bool DetectExisting(string projectRoot) =>
-        File.Exists(TargetFilePath(projectRoot));
+        Directory.Exists(Path.Combine(projectRoot, ".cline", "skills")) ||
+        File.Exists(Path.Combine(projectRoot, ".clinerules"));
+
+    public IReadOnlyList<string> LegacyPaths(string projectRoot) =>
+        [Path.Combine(projectRoot, ".clinerules")];
 }

@@ -72,7 +72,7 @@ static int PrintHelp()
     Row("sync",      "",                   "Pull latest skill versions from the registry");
     Row("create",    "[[<name>]] [[-d desc]] [[-t tags]] [[-o owner]]", "Scaffold a new skill for AI/manual authoring");
     Row("publish",   "[[<skill>…]]",          "Push local skills to the registry");
-    Row("refresh",   "[[--target adapter]]", "Re-inject the skill index into agent config files");
+    Row("refresh",   "[[--target adapter]]", "Re-project lorex skills into native agent locations");
 
     AnsiConsole.WriteLine();
     AnsiConsole.Write(new FigletText("lorex").Color(Color.Blue));
