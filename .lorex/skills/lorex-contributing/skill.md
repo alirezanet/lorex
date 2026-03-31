@@ -137,7 +137,7 @@ dotnet build
 dotnet run --project src/Lorex -- <args>
 
 # Dev install (builds -dev nupkg + installs as global tool)
-dotnet run install.cs
+dotnet install.cs
 
 # Run tests
 dotnet test

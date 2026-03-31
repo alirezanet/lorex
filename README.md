@@ -19,16 +19,12 @@ Instead of copying the same context into `AGENTS.md`, `.cursorrules`, `CLAUDE.md
 
 Start with one repo in local-only mode. Grow into a shared team registry later. Same workflow, same skill format, no SaaS, no vendor lock-in.
 
-> The goal is simple: when someone clones a repo, their AI agent should not start from zero.
-
 ## Why Lorex
 
-- Keep one source of truth for agent guidance across tools and repos.
-- Write skills as plain markdown, with optional scripts or helper files beside them.
-- Use lorex locally inside a single repository or connect it to a shared Git registry.
-- Inject only a bounded `<!-- lorex:start --> ... <!-- lorex:end -->` block into agent config files.
-- Sync registry-backed skills through symlinks when available, with copy fallback on systems that do not allow symlinks.
-- Ship as native binaries for Windows, Linux, and macOS.
+Lorex has a simple goal:
+- When someone clones a repo, their AI agent should not start from zero.
+- Help people create new skills with their favorite AI agent.
+- Make great skills easy to share across repos, teammates, and teams.
 
 ## Install
 
@@ -54,6 +50,18 @@ dotnet tool install -g lorex
 ```
 
 This path requires the .NET 10 SDK.
+
+### Build from source
+
+If you want to build the current source and install a local development version:
+
+```bash
+git clone https://github.com/alirezanet/lorex
+cd lorex
+dotnet install.cs
+```
+
+This builds a `-dev` package from source and installs it as a global tool.
 
 ## Quick Start
 
@@ -286,7 +294,7 @@ Lorex is built with C# and .NET 10, with native AOT publish profiles for Windows
 ```bash
 git clone https://github.com/alirezanet/lorex
 cd lorex
-dotnet run install.cs
+dotnet install.cs
 lorex --help
 dotnet test
 ```
