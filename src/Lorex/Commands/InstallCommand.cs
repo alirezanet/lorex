@@ -77,13 +77,27 @@ public static class InstallCommand
                 return 0;
             }
 
+            var (approvedSkills, skippedSkills) = SkillOverwritePrompts.ResolveApprovedOverrides(
+                projectRoot,
+                requestedSkills,
+                skillName => $"Overwrite local skill [bold]{Markup.Escape(skillName)}[/] with the registry version?");
+
+            if (approvedSkills.Count == 0)
+            {
+                AnsiConsole.MarkupLine("[yellow]Nothing selected.[/]");
+                return 0;
+            }
+
             AnsiConsole.Status()
                 .Start("Installing skills...", ctx =>
                 {
-                    foreach (var skillName in requestedSkills)
+                    foreach (var skillName in approvedSkills)
                     {
                         ctx.Status($"Installing [bold]{skillName}[/]...");
-                        ServiceFactory.Skills.InstallSkill(projectRoot, skillName);
+                        ServiceFactory.Skills.InstallSkill(
+                            projectRoot,
+                            skillName,
+                            overwriteLocalSkill: ServiceFactory.Skills.RequiresOverwriteApproval(projectRoot, skillName));
                     }
 
                     ctx.Spinner(Spinner.Known.Dots);
@@ -92,10 +106,13 @@ public static class InstallCommand
                     ServiceFactory.Adapters.Project(projectRoot, config);
                 });
 
-            foreach (var skillName in requestedSkills)
+            foreach (var skillName in approvedSkills)
             {
                 AnsiConsole.MarkupLine($"[green]✓[/] Installed [bold]{skillName}[/] [dim](symlinked)[/]");
             }
+
+            foreach (var skillName in skippedSkills)
+                AnsiConsole.MarkupLine("[yellow]Skipped[/] [bold]{0}[/] [dim](kept existing local skill)[/]", skillName);
 
             return 0;
         }

@@ -1,5 +1,6 @@
 using Lorex.Commands;
 using Lorex.Core.Models;
+using Lorex.Core.Services;
 
 namespace Lorex.Tests;
 
@@ -192,5 +193,40 @@ public sealed class CommandArgumentTests
 
         Assert.Equal("alirezanet/lorex", https);
         Assert.Equal("alirezanet/lorex", ssh);
+    }
+
+    [Fact]
+    public void SkillService_RequiresOverwriteApproval_IsTrueForLocalDirectoryAndFalseForSymlink()
+    {
+        var projectRoot = Path.Combine(Path.GetTempPath(), $"lorex-test-{Guid.NewGuid():N}");
+        var sourceRoot = Path.Combine(Path.GetTempPath(), $"lorex-test-source-{Guid.NewGuid():N}");
+        var service = new SkillService(new RegistryService(new GitService()));
+
+        try
+        {
+            var localDir = Path.Combine(projectRoot, ".lorex", "skills", "local");
+            var sourceDir = Path.Combine(sourceRoot, "linked");
+            var linkedDir = Path.Combine(projectRoot, ".lorex", "skills", "linked");
+
+            Directory.CreateDirectory(localDir);
+            File.WriteAllText(Path.Combine(localDir, "SKILL.md"), "# local");
+
+            Directory.CreateDirectory(sourceDir);
+            File.WriteAllText(Path.Combine(sourceDir, "SKILL.md"), "# linked");
+
+            Directory.CreateDirectory(Path.GetDirectoryName(linkedDir)!);
+            Directory.CreateSymbolicLink(linkedDir, sourceDir);
+
+            Assert.True(service.RequiresOverwriteApproval(projectRoot, "local"));
+            Assert.False(service.RequiresOverwriteApproval(projectRoot, "linked"));
+            Assert.False(service.RequiresOverwriteApproval(projectRoot, "missing"));
+        }
+        finally
+        {
+            if (Directory.Exists(projectRoot))
+                Directory.Delete(projectRoot, recursive: true);
+            if (Directory.Exists(sourceRoot))
+                Directory.Delete(sourceRoot, recursive: true);
+        }
     }
 }

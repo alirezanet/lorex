@@ -35,9 +35,9 @@ public sealed class RegistryService(GitService git)
     }
 
     /// <summary>Finds a skill folder inside the cached registry. Returns null if not found.</summary>
-    public string? FindSkillPath(string registryUrl, string skillName)
+    public string? FindSkillPath(string registryUrl, string skillName, bool refresh = true)
     {
-        var cacheDir = EnsureCache(registryUrl);
+        var cacheDir = refresh ? EnsureCache(registryUrl) : GetCachePath(registryUrl);
         var candidate = Path.Combine(cacheDir, "skills", skillName);
         return Directory.Exists(candidate) ? candidate : null;
     }

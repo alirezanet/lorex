@@ -160,14 +160,25 @@ public static class InitCommand
 
                 if (string.Equals(installRecommended, "Yes", StringComparison.Ordinal))
                 {
+                    var (approvedSkills, skippedSkills) = SkillOverwritePrompts.ResolveApprovedOverrides(
+                        projectRoot,
+                        recommendedToInstall,
+                        skillName => $"Overwrite local skill [bold]{Markup.Escape(skillName)}[/] with the registry version?");
+
+                    if (approvedSkills.Count == 0)
+                        goto FinishInit;
+
                     AnsiConsole.Status()
                         .Start("Installing recommended skills...", ctx =>
                         {
-                            foreach (var skillName in recommendedToInstall)
+                            foreach (var skillName in approvedSkills)
                             {
                                 ctx.Spinner(Spinner.Known.Dots);
                                 ctx.Status($"Installing [bold]{skillName}[/]...");
-                                ServiceFactory.Skills.InstallSkill(projectRoot, skillName);
+                                ServiceFactory.Skills.InstallSkill(
+                                    projectRoot,
+                                    skillName,
+                                    overwriteLocalSkill: ServiceFactory.Skills.RequiresOverwriteApproval(projectRoot, skillName));
                             }
 
                             ctx.Status("Projecting skills into native agent locations...");
@@ -175,10 +186,14 @@ public static class InitCommand
                             ServiceFactory.Adapters.Project(projectRoot, updatedConfig);
                             config = updatedConfig;
                         });
+
+                    foreach (var skillName in skippedSkills)
+                        AnsiConsole.MarkupLine("[yellow]Skipped[/] [bold]{0}[/] [dim](kept existing local skill)[/]", skillName);
                 }
             }
         }
 
+FinishInit:
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("[green]✓[/] lorex initialised. Native agent projections updated:");
         foreach (var name in selectedAdapters)

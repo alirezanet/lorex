@@ -111,7 +111,7 @@ public sealed class SkillService(RegistryService registry)
     /// Creates a symlink .lorex/skills/&lt;name&gt; → registry cache path and records the skill in lorex.json.
     /// Symlinks are required for registry installs.
     /// </summary>
-    public void InstallSkill(string projectRoot, string skillName)
+    public void InstallSkill(string projectRoot, string skillName, bool overwriteLocalSkill = false)
     {
         var config = ReadConfig(projectRoot);
         if (config.Registry is null)
@@ -124,7 +124,15 @@ public sealed class SkillService(RegistryService registry)
 
         // Remove any existing link or directory at the target
         if (Directory.Exists(linkPath))
+        {
+            if (!IsSymlink(linkPath) && !overwriteLocalSkill)
+            {
+                throw new InvalidOperationException(
+                    $"Skill '{skillName}' already exists locally at '{linkPath}'. Overwrite requires direct user approval.");
+            }
+
             Directory.Delete(linkPath, recursive: true);
+        }
 
         if (!TryCreateSymlink(linkPath, sourcePath))
         {
@@ -148,13 +156,19 @@ public sealed class SkillService(RegistryService registry)
     /// Pulls the registry cache so all symlinked skills automatically reflect updates.
     /// Returns skill names that were updated.
     /// </summary>
-    public IReadOnlyList<string> SyncSkills(string projectRoot)
+    public IReadOnlyList<string> SyncSkills(
+        string projectRoot,
+        IReadOnlyCollection<string>? approvedOverwriteSkillNames = null,
+        bool refreshRegistry = true)
     {
         var config = ReadConfig(projectRoot);
+        var approved = approvedOverwriteSkillNames?.ToHashSet(StringComparer.OrdinalIgnoreCase)
+            ?? [];
 
         // Pull the registry cache — symlinks automatically point to the fresh content
         if (config.Registry is null) return [];
-        registry.EnsureCache(config.Registry.Url);
+        if (refreshRegistry)
+            registry.EnsureCache(config.Registry.Url);
 
         var updated = new List<string>();
 
@@ -178,13 +192,13 @@ public sealed class SkillService(RegistryService registry)
                 continue;
             }
 
-            var sourcePath = registry.FindSkillPath(config.Registry.Url, skillName);
+            var sourcePath = registry.FindSkillPath(config.Registry.Url, skillName, refresh: false);
             if (sourcePath is null) continue;
 
-            if (Directory.Exists(linkPath))
-                Directory.Delete(linkPath, recursive: true);
+            if (!approved.Contains(skillName))
+                continue;
 
-            InstallSkill(projectRoot, skillName);
+            InstallSkill(projectRoot, skillName, overwriteLocalSkill: true);
             updated.Add(skillName);
         }
 
@@ -302,6 +316,12 @@ public sealed class SkillService(RegistryService registry)
             if (new DirectoryInfo(dir).LinkTarget is null && !builtIns.Contains(name))
                 yield return name;
         }
+    }
+
+    public bool RequiresOverwriteApproval(string projectRoot, string skillName)
+    {
+        var path = SkillDir(projectRoot, skillName);
+        return Directory.Exists(path) && !IsSymlink(path);
     }
 
     private PublishResult PublishSkillDirect(string projectRoot, string skillName, string localPath, RegistryConfig registryConfig, GitService git)

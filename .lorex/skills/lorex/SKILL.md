@@ -46,6 +46,8 @@ Running `lorex init` with no arguments opens a guided setup flow:
 
 Running `lorex install` with no skill names opens an interactive flow where users can install recommended skills, install everything, or choose a subset. Recommendations are based on exact tag matches against the current repo slug like `owner/repo`, or the folder name if no git slug is available. `lorex uninstall` similarly supports `--all` or an interactive flow to remove all installed skills or choose a subset.
 
+If a registry install or sync would replace an existing local skill directory in `.lorex/skills`, lorex asks for explicit approval per skill before overwriting it.
+
 Shared registries declare their own contribution policy in `/.lorex-registry.json`:
 
 - `direct`: `lorex publish` commits and pushes straight to the registry
