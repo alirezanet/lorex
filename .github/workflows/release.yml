@@ -52,11 +52,10 @@ jobs:
             binary: Lorex
             artifact: lorex-linux-x64
 
-          - os: ubuntu-latest
+          - os: ubuntu-24.04-arm
             rid: linux-arm64
             binary: Lorex
             artifact: lorex-linux-arm64
-            cross: true
 
           - os: macos-latest
             rid: osx-x64
@@ -75,13 +74,6 @@ jobs:
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
-
-      # linux-arm64 native AOT requires the aarch64 cross-linker on x64 runners
-      - name: Install ARM64 cross-compile tools
-        if: matrix.rid == 'linux-arm64'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
 
       - name: Extract version from tag
         id: ver
