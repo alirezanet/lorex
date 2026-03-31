@@ -1,192 +1,237 @@
-# Lorex 
+# Lorex
 
-### The Shared Knowledge Registry for AI Agents and People.
+### The Shared Knowledge Registry for AI Agents and People
 
-**Stop repeating yourself to AI.** Lorex turns your architecture notes, conventions, and runbooks into version-controlled "Skills" that every AI agent understand. 
+**Stop repeating yourself to AI.** Lorex turns project knowledge into version-controlled reusable artifacts that every supported agent can consume.
 
 [![CI](https://github.com/alirezanet/lorex/actions/workflows/ci.yml/badge.svg)](https://github.com/alirezanet/lorex/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](#license)
 [![Status](https://img.shields.io/badge/status-early%20beta-orange.svg)](#contributing)
 ![Status](https://img.shields.io/badge/status-under%20development-orange)
 
-*Lorex is under active development. Expect rapid changes, rough edges, and frequent improvements.*
+Lorex is under active development. Expect rapid changes, rough edges, and frequent improvements.
 
------
+## Who Needs Lorex?
 
-### ℹ️ Who Needs Lorex?
+- People using multiple AI agents who want one reusable source of truth
+- Teams who want to share AI-ready project knowledge without rewriting it per tool
+- Developers who want project-specific skills and prompts to be easy to install and reuse
+- People who have strong AI sessions but want to turn them into reusable artifacts
 
-- People using multiple AI agents and want one reusable skill source.
-- Teams who want to share AI-ready project knowledge without rewriting it for every person or every tool.
-- Developers who want project-specific skills to be easy for others to install and use.
-- People who have strong AI sessions but find it hard to turn that knowledge into a reusable skill.
+## Why Lorex?
 
-### ⚡ Why Lorex?
-  * **Works with every agent:** Add a skill once. Lorex projects a synchronized link to your all AI agent tools.
-  * **Shared Intelligence:** Build a central "Team Registry" (any Git repo) to share standards (e.g., `security-rules`, `api-conventions`) across your entire organization.
-  * **Native AOT:** Fast CLI, No runtime, no VM, no bulky dependencies.
+- **Works across agents:** author once, project into each agent's native surface
+- **Shared intelligence:** use any Git repo as a registry for reusable team artifacts
+- **Native AOT:** fast CLI, no runtime or VM
+- **Git-native:** diffs, history, reviews, and normal repo workflows
 
- 
+## Get Started
 
-## 🚀 Get Started
-
-### 1\. Install
-
-Choose the method that fits your workflow:
-
-#### **Quick Install (Recommended)**
-
-Install from the latest GitHub release:
+### 1. Install
 
 Windows (PowerShell):
+
 ```powershell
 irm https://raw.githubusercontent.com/alirezanet/lorex/main/scripts/install.ps1 | iex
 ```
 
 macOS / Linux:
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/alirezanet/lorex/main/scripts/install.sh | sh
 ```
 
-#### **For .NET Developers**
-
-Install Lorex as a global tool using the .NET 10 SDK:
+For .NET developers:
 
 ```bash
 dotnet tool install -g lorex --prerelease
 ```
 
-#### **Manual Download (Fallback)**
-
-Lorex is a high-performance **Native** binary. No runtime required.
-
-1.  Download the latest release for your OS (Windows, macOS, Linux) from [GitHub Releases](https://github.com/alirezanet/lorex/releases).
-2.  Rename it to `lorex` and Add the binary to your `PATH`.
-
------
-
-### 2\. Initialize
+### 2. Initialize a Project
 
 ```bash
 cd your-project
 lorex init
 ```
 
-This detects your AI tools, installs the built-in `lorex` skill, and can suggest registry skills tagged for the current repo. If the connected registry already has skills this project does not have yet, Lorex points you to `lorex install --recommended` or `lorex list`, and `lorex sync` for keeping installed shared skills fresh.
+`lorex init`:
 
------
+- detects known adapters
+- installs the built-in `lorex` skill
+- configures a shared registry or local-only mode
+- re-discovers existing local skills and prompts under `.lorex/`
+- suggests recommended registry skills for the current repo when available
 
-## 🛠️ Key Use Cases
+## Common Flows
 
-### 1\. Let your AI write the "Lore" (Local Skills)
-
-You don't need to write documentation manually. Because Lorex installs its own definition during `init`, you can simply tell your AI to document the project for you.
-
-**e.g Prompt:**
-
-> Create a lorex skill called `<projectName>-conventions`. Analyze this repository's architecture, coding patterns, build and test commands, and common pitfalls. Capture the rules every contributor and AI agent should follow before making changes.
-
-**The Result:**
-Your AI creates `.lorex/skills/<projectName>-conventions/SKILL.md`. Run `lorex refresh`, and that knowledge is now permanently available to **every** selected AI agent that opens this repo.
-
-### 2\. Share Your Wisdom (The Team Registry)
-
-Turn a local skill into a company-wide standard in seconds. Lorex allows you to **publish** local knowledge to a shared Git registry.
+### Create a local skill
 
 ```bash
-# 1. Connect to your team's central library (a private Git repo)
-lorex init https://github.com/your-org/ai-skills.git
-
-# 2. Publish a locally created skill to the registry for others to use
-# This makes it available to everyone else in the org!
-lorex publish auth-logic
-
-# 3. Teammates can now install it in their own repos
-lorex install auth-logic
+lorex create api-conventions -d "API rules and versioning constraints" -t "api,http" -o "platform"
 ```
 
-*Update the skill in the registry once; `lorex sync` updates it for every developer and every repo in the company.*
-
-*For team registries, Lorex can store a registry policy in `.lorex-registry.json` so contributors sync and install from the shared registry normally, while `lorex publish` uses a pull-request workflow instead of pushing directly.*
-
-*When that policy needs to change, run `lorex registry`. Lorex updates the manifest directly for direct-write registries, or prepares a review branch when the registry itself is governed by a pull-request workflow.*
-
------
-
-## 🧠 The "Magic": How it Works
-
-Lorex keeps **one canonical source of truth** for your knowledge:
+Then edit:
 
 ```text
-.lorex/skills/
+.lorex/skills/api-conventions/SKILL.md
+```
+
+### Create a local prompt
+
+```bash
+lorex create review-pr --type prompt -d "Review a pull request for bugs, regressions, and missing tests" -t "review,qa" -o "platform"
+```
+
+Then edit:
+
+```text
+.lorex/prompts/review-pr/PROMPT.md
+```
+
+### Install from a team registry
+
+```bash
+lorex init https://github.com/your-org/ai-artifacts.git
+lorex install auth-logic
+lorex install --type prompt review-pr
+```
+
+### Publish a local artifact
+
+```bash
+lorex publish auth-logic
+lorex publish --type prompt review-pr
+```
+
+### Show a prompt for Codex
+
+Codex prompt projection is intentionally not repo-managed. Use the CLI fallback:
+
+```bash
+lorex show prompt review-pr
+```
+
+## CLI Overview
+
+| Command | Description |
+|---|---|
+| `lorex init` | Configure lorex, registry policy, and adapters for this project |
+| `lorex create [--type skill|prompt]` | Scaffold a local artifact |
+| `lorex install [--type skill|prompt]` | Install registry artifacts |
+| `lorex uninstall [--type skill|prompt]` | Remove installed artifacts |
+| `lorex list [--type skill|prompt]` | Browse registry artifacts |
+| `lorex status [--type skill|prompt]` | Show installed artifacts and adapter targets |
+| `lorex sync [--type skill|prompt]` | Refresh installed shared artifacts |
+| `lorex publish [--type skill|prompt]` | Publish local artifacts to the registry |
+| `lorex show prompt <name>` | Print a canonical prompt for manual use |
+| `lorex registry` | Update registry publish policy |
+| `lorex refresh [--type skill|prompt]` | Re-project artifacts into agent-native locations |
+
+`--type` defaults to `skill` in non-interactive command usage.
+
+For interactive `create`, `install`, `uninstall`, and `publish`, Lorex asks for the artifact type first when `--type` is omitted.
+
+`status`, `sync`, and `refresh` operate on both skills and prompts by default, with optional `--type` filtering.
+
+## How Projection Works
+
+Lorex keeps one canonical store:
+
+```text
+.lorex/
+  lorex.json
+  skills/
+    auth-logic/
+      SKILL.md
+  prompts/
+    review-pr/
+      PROMPT.md
+```
+
+When you run `lorex refresh`, Lorex projects those artifacts into each agent's native integration surface.
+
+### Skill projections
+
+Skills use native skill directories or skill-derived rules/settings:
+
+- Copilot: `.github/skills/`
+- Codex: `.agents/skills/`
+- Claude: `.claude/skills/`
+- Windsurf: `.windsurf/skills/`
+- Cline: `.cline/skills/`
+- OpenCode: `.opencode/skills/`
+- Cursor: `.cursor/rules/`
+- Roo: `.roo/rules-code/`
+- Gemini: `.gemini/settings.json` referencing `.lorex/skills/*`
+
+### Prompt projections
+
+Prompts project into native prompt, command, or workflow surfaces:
+
+- Copilot: `.github/prompts/*.prompt.md` plus `.vscode/settings.json` with `chat.promptFiles: true`
+- Claude: `.claude/commands/*.md`
+- Cursor: `.cursor/commands/*.md`
+- Windsurf: `.windsurf/workflows/*.md`
+- Cline: `.clinerules/workflows/*.md`
+- Roo: `.roo/commands/*.md`
+- Gemini: `.gemini/commands/*.toml`
+- OpenCode: `.opencode/commands/*.md`
+- Codex: no repo projection; use `lorex show prompt`
+
+Registry-installed artifacts are symlinked into `.lorex/skills` or `.lorex/prompts`. Adapter projection outputs are derived files and should usually be gitignored.
+
+## Registry Layout
+
+Lorex registries are plain Git repositories:
+
+```text
+.lorex-registry.json
+skills/
   auth-logic/
     SKILL.md
-  api-conventions/
-    SKILL.md
+prompts/
+  review-pr/
+    PROMPT.md
 ```
 
-That folder is the only place Lorex expects you to author or review skill content. Everything else is a derived projection.
+Registry policy lives in `.lorex-registry.json` and controls how `lorex publish` behaves:
 
-When you run `lorex refresh`, Lorex projects those skills into each agent's **native integration surface**.
+- `direct`
+- `pull-request`
+- `read-only`
 
-For agents with native skill folders, Lorex creates **directory symlinks** back to `.lorex/skills`:
+Use `lorex registry` to update that policy.
 
-```text
-.claude/skills/auth-logic        -> .lorex/skills/auth-logic
-.agents/skills/auth-logic        -> .lorex/skills/auth-logic
-.github/skills/auth-logic        -> .lorex/skills/auth-logic
-.cline/skills/auth-logic         -> .lorex/skills/auth-logic
-.windsurf/skills/auth-logic      -> .lorex/skills/auth-logic
-.opencode/skills/auth-logic      -> .lorex/skills/auth-logic
-```
-
-For agents that use rules or settings instead of skill folders, Lorex generates the right native files from the same source skill:
-
-- Cursor → `.cursor/rules/`
-- Roo → `.roo/rules-code/`
-- Gemini → `.gemini/settings.json`
-
-So the flow is:
-
-1.  Write or install a skill once in `.lorex/skills/`
-2.  Run `lorex refresh`
-3.  Lorex syncs every selected adapter to that same source using the format that agent already understands
-
-Because the projections are derived from the canonical skill store, your agents stay in sync without duplicating the actual knowledge across multiple incompatible formats.
-
------
-
-## ❓ Why Not Just RAG?
+## Why Not Just RAG?
 
 | Feature | Traditional RAG | Lorex |
-| :--- | :--- | :--- |
-| **Precision** | Probabilistic (can "hallucinate" context) | Explicit & Human-verified |
-| **Versioning** | Hard to track in DBs | Git-native (PRs, Diff, History) |
-| **Infrastructure** | Requires Vector DB & API | Zero infra. Just a CLI and files. |
-| **Control** | "Black box" retrieval | You decide exactly what the agent knows. |
+|---|---|---|
+| Precision | Probabilistic | Explicit and reviewable |
+| Versioning | Hard to audit | Git-native |
+| Infrastructure | Vector DB and services | Files plus a CLI |
+| Control | Retrieval heuristics | Canonical files you own |
 
------
-
-## 🤝 Contributing
-
-Lorex is still a young project, and contributions are welcome if you want to help improve the tool, its integrations, or the overall developer experience.
+## Contributing
 
 ```bash
 git clone https://github.com/alirezanet/lorex
 cd lorex
-dotnet ./install.cs # Builds and installs the dev version
+dotnet ./install.cs
 ```
 
-**This repo dogfoods Lorex.** Once cloned, your AI agent can read the `lorex-contributing` skill to learn the internal architecture and contribution workflow automatically\!
+This repo dogfoods Lorex. Once cloned, your AI agent can read:
 
-Some future ideas we will likely explore:
+- `lorex`
+- `lorex-contributing`
 
-- Shared prompts and other reusable AI assets alongside skills.
-- Support for sub-agents and other structured agent building blocks.
-- More AI providers and native integrations.
-- Better ways to extract reusable skills from successful AI sessions.
+to learn the CLI behavior and internal architecture automatically.
 
------
+Current roadmap areas include:
 
-### License
+- more adapters and richer native projections
+- better workflows for extracting reusable artifacts from successful AI sessions
+- support for more structured reusable agent assets beyond skills and prompts
+
+## License
 
 MIT

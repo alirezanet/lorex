@@ -1,73 +1,92 @@
 using Lorex.Cli;
+using Lorex.Core.Models;
 using Lorex.Core.Services;
 using Spectre.Console;
 
 namespace Lorex.Commands;
 
-/// <summary>Implements <c>lorex uninstall &lt;skill&gt;</c>: removes an installed skill from the current project.</summary>
+/// <summary>Implements <c>lorex uninstall</c>: removes installed artifacts from the current project.</summary>
 public static class UninstallCommand
 {
     private const string AllFlag = "--all";
-    private const string PromptUninstallAll = "Uninstall all installed skills";
-    private const string PromptChooseSpecific = "Choose specific skills";
+    private const string PromptUninstallAll = "Uninstall all installed artifacts";
+    private const string PromptChooseSpecific = "Choose specific artifacts";
 
-    /// <summary>Runs the command. Returns 0 on success, 1 on failure.</summary>
     public static int Run(string[] args)
     {
         var projectRoot = ProjectRootLocator.ResolveForExistingProject(Directory.GetCurrentDirectory());
 
+        ArtifactCliSupport.ParsedArtifactType parsedType;
         try
         {
-            var config = ServiceFactory.Skills.ReadConfig(projectRoot);
-            var uninstallAll = WantsAll(args);
-            var requestedSkills = ParseSkillNames(args);
+            parsedType = ArtifactCliSupport.ParseArtifactTypeOrDefault(args);
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine("[red]Error:[/] {0}", Markup.Escape(ex.Message));
+            return 1;
+        }
 
-            if (uninstallAll && requestedSkills.Count > 0)
+        args = parsedType.RemainingArgs;
+
+        try
+        {
+            var config = ServiceFactory.Artifacts.ReadConfig(projectRoot);
+            var uninstallAll = WantsAll(args);
+            var requestedArtifacts = ParseArtifactNames(args);
+            var interactive = !uninstallAll && requestedArtifacts.Count == 0;
+            var kind = interactive && !parsedType.HasExplicitType
+                ? ArtifactCliSupport.PromptForArtifactKind("uninstall")
+                : parsedType.Kind;
+
+            if (uninstallAll && requestedArtifacts.Count > 0)
             {
-                AnsiConsole.MarkupLine("[red]Usage:[/] lorex uninstall [[bold]<skill>...[/]] [[bold]--all[/]]");
-                AnsiConsole.MarkupLine("[dim]Use explicit skill names or [bold]--all[/], not both.[/]");
+                AnsiConsole.MarkupLine("[red]Usage:[/] lorex uninstall [[bold]<artifact>...[/]] [[bold]--all[/]] [[bold]--type skill|prompt[/]]");
+                AnsiConsole.MarkupLine("[dim]Use explicit artifact names or [bold]--all[/], not both.[/]");
                 return 1;
             }
 
             if (uninstallAll)
             {
-                requestedSkills = GetInstalledSkillNames(config);
+                requestedArtifacts = GetInstalledArtifactNames(config, kind);
             }
-            else if (requestedSkills.Count == 0)
+            else if (interactive)
             {
-                requestedSkills = PromptForSkills(config);
+                requestedArtifacts = PromptForArtifacts(config, kind);
             }
 
-            if (requestedSkills.Count == 0)
+            if (requestedArtifacts.Count == 0)
             {
                 AnsiConsole.MarkupLine("[yellow]Nothing selected.[/]");
                 return 0;
             }
 
-            var missingSkills = requestedSkills
-                .Where(skill => !config.InstalledSkills.Contains(skill, StringComparer.OrdinalIgnoreCase))
+            var installed = config.Artifacts.Get(kind);
+            var missingArtifacts = requestedArtifacts
+                .Where(artifact => !installed.Contains(artifact, StringComparer.OrdinalIgnoreCase))
                 .ToList();
 
-            if (missingSkills.Count > 0)
+            if (missingArtifacts.Count > 0)
             {
-                foreach (var skillName in missingSkills)
+                foreach (var artifactName in missingArtifacts)
                 {
-                    AnsiConsole.MarkupLine("[yellow]Skill '[/]{0}[yellow]' is not installed in this project.[/]",
-                        Markup.Escape(skillName));
+                    AnsiConsole.MarkupLine(
+                        "[yellow]{0} '[/]{1}[yellow]' is not installed in this project.[/]",
+                        kind.Title(),
+                        Markup.Escape(artifactName));
                 }
 
                 return 1;
             }
 
-            foreach (var skillName in requestedSkills)
-                ServiceFactory.Skills.UninstallSkill(projectRoot, skillName);
+            foreach (var artifactName in requestedArtifacts)
+                ServiceFactory.Artifacts.UninstallArtifact(projectRoot, kind, artifactName);
 
-            // Re-project adapter outputs so the removed skill disappears from native agent integrations
-            var updated = ServiceFactory.Skills.ReadConfig(projectRoot);
+            var updated = ServiceFactory.Artifacts.ReadConfig(projectRoot);
             ServiceFactory.Adapters.Project(projectRoot, updated);
 
-            foreach (var skillName in requestedSkills)
-                AnsiConsole.MarkupLine("[green]✓[/] Uninstalled [bold]{0}[/]", Markup.Escape(skillName));
+            foreach (var artifactName in requestedArtifacts)
+                AnsiConsole.MarkupLine("[green]✓[/] Uninstalled [bold]{0}[/]", Markup.Escape(artifactName));
 
             return 0;
         }
@@ -81,35 +100,35 @@ public static class UninstallCommand
     internal static bool WantsAll(string[] args) =>
         args.Any(a => string.Equals(a, AllFlag, StringComparison.OrdinalIgnoreCase));
 
-    internal static List<string> ParseSkillNames(string[] args) =>
+    internal static List<string> ParseArtifactNames(string[] args) =>
         [.. args
             .Where(a => !string.IsNullOrWhiteSpace(a) && !string.Equals(a, AllFlag, StringComparison.OrdinalIgnoreCase))
             .Distinct(StringComparer.OrdinalIgnoreCase)];
 
-    internal static List<string> GetInstalledSkillNames(Core.Models.LorexConfig config) =>
-        [.. config.InstalledSkills.OrderBy(name => name, StringComparer.OrdinalIgnoreCase)];
+    internal static List<string> GetInstalledArtifactNames(LorexConfig config, ArtifactKind kind) =>
+        [.. config.Artifacts.Get(kind).OrderBy(name => name, StringComparer.OrdinalIgnoreCase)];
 
-    private static List<string> PromptForSkills(Core.Models.LorexConfig config)
+    private static List<string> PromptForArtifacts(LorexConfig config, ArtifactKind kind)
     {
-        var installedSkills = GetInstalledSkillNames(config);
-        if (installedSkills.Count == 0)
+        var installedArtifacts = GetInstalledArtifactNames(config, kind);
+        if (installedArtifacts.Count == 0)
         {
-            AnsiConsole.MarkupLine("[yellow]No skills are installed in this project.[/]");
+            AnsiConsole.MarkupLine("[yellow]No {0} are installed in this project.[/]", kind.DisplayNamePlural());
             return [];
         }
 
         var selectionMode = AnsiConsole.Prompt(
             new SelectionPrompt<string>()
-                .Title("[bold]How do you want to uninstall skills?[/]")
+                .Title($"[bold]How do you want to uninstall {kind.DisplayNamePlural()}?[/]")
                 .AddChoices(PromptUninstallAll, PromptChooseSpecific));
 
         if (string.Equals(selectionMode, PromptUninstallAll, StringComparison.Ordinal))
-            return installedSkills;
+            return installedArtifacts;
 
         return AnsiConsole.Prompt(
             new MultiSelectionPrompt<string>()
-                .Title("[bold]Which skills do you want to uninstall?[/]")
+                .Title($"[bold]Which {kind.DisplayNamePlural()} do you want to uninstall?[/]")
                 .InstructionsText("[dim](Space to select, Enter to confirm)[/]")
-                .AddChoices(installedSkills));
+                .AddChoices(installedArtifacts));
     }
 }

@@ -6,7 +6,7 @@ using Spectre.Console;
 
 namespace Lorex.Commands;
 
-/// <summary>Implements <c>lorex init</c>: configures a skill registry, selects adapters, and projects built-in skills into native agent locations.</summary>
+/// <summary>Implements <c>lorex init</c>: configures an artifact registry, selects adapters, and projects built-in skills into native agent locations.</summary>
 public static class InitCommand
 {
     private const string AddNewRegistry = "+ Enter a new registry URL";
@@ -109,9 +109,7 @@ public static class InitCommand
         }
 
         if (selectedAdapters.Count == 0)
-        {
-            AnsiConsole.MarkupLine("[yellow]No adapters selected — lorex will not project skills into any agent-specific location.[/]");
-        }
+            AnsiConsole.MarkupLine("[yellow]No adapters selected — lorex will not project artifacts into any agent-specific location.[/]");
 
         // ── Write lorex.json ──────────────────────────────────────────────────
         var config = new LorexConfig
@@ -124,26 +122,26 @@ public static class InitCommand
                     Policy = registryPolicy ?? throw new InvalidOperationException("Registry policy is missing."),
                 },
             Adapters = [.. selectedAdapters],
-            InstalledSkills = [],
+            Artifacts = new ArtifactCollection(),
         };
 
-        ServiceFactory.Skills.WriteConfig(projectRoot, config);
+        ServiceFactory.Artifacts.WriteConfig(projectRoot, config);
         if (registryUrl is not null)
-            ServiceFactory.Skills.SaveGlobalRegistry(registryUrl);
+            ServiceFactory.Artifacts.SaveGlobalRegistry(registryUrl);
 
         // ── Install built-in skills (bundled in the binary) ───────────────────
         var builtIns = BuiltInSkillService.InstallAll(projectRoot, config);
-        var discoveredSkills = ServiceFactory.Skills.DiscoverInstalledSkillNames(projectRoot);
-        if (builtIns.Count > 0 || discoveredSkills.Count > 0)
+        var discoveredSkills = ServiceFactory.Artifacts.DiscoverInstalledArtifactNames(projectRoot, ArtifactKind.Skill);
+        var discoveredPrompts = ServiceFactory.Artifacts.DiscoverInstalledArtifactNames(projectRoot, ArtifactKind.Prompt);
+        if (builtIns.Count > 0 || discoveredSkills.Count > 0 || discoveredPrompts.Count > 0)
         {
             config = config with
             {
-                InstalledSkills = [.. config.InstalledSkills
-                    .Concat(builtIns)
-                    .Concat(discoveredSkills)
-                    .Distinct(StringComparer.OrdinalIgnoreCase)]
+                Artifacts = config.Artifacts
+                    .With(ArtifactKind.Skill, config.Artifacts.Skills.Concat(builtIns).Concat(discoveredSkills))
+                    .With(ArtifactKind.Prompt, discoveredPrompts)
             };
-            ServiceFactory.Skills.WriteConfig(projectRoot, config);
+            ServiceFactory.Artifacts.WriteConfig(projectRoot, config);
         }
 
         // ── Project built-in skills into native agent surfaces ────────────────
@@ -161,8 +159,9 @@ public static class InitCommand
 
                 if (string.Equals(installRecommended, "Yes", StringComparison.Ordinal))
                 {
-                    var (approvedSkills, skippedSkills) = SkillOverwritePrompts.ResolveApprovedOverrides(
+                    var (approvedSkills, skippedSkills) = ArtifactOverwritePrompts.ResolveApprovedOverrides(
                         projectRoot,
+                        ArtifactKind.Skill,
                         recommendedToInstall,
                         skillName => $"Overwrite local skill [bold]{Markup.Escape(skillName)}[/] with the registry version?");
 
@@ -176,14 +175,15 @@ public static class InitCommand
                             {
                                 ctx.Spinner(Spinner.Known.Dots);
                                 ctx.Status($"Installing [bold]{skillName}[/]...");
-                                ServiceFactory.Skills.InstallSkill(
+                                ServiceFactory.Artifacts.InstallArtifact(
                                     projectRoot,
+                                    ArtifactKind.Skill,
                                     skillName,
-                                    overwriteLocalSkill: ServiceFactory.Skills.RequiresOverwriteApproval(projectRoot, skillName));
+                                    overwriteLocalArtifact: ServiceFactory.Artifacts.RequiresOverwriteApproval(projectRoot, ArtifactKind.Skill, skillName));
                             }
 
-                            ctx.Status("Projecting skills into native agent locations...");
-                            var updatedConfig = ServiceFactory.Skills.ReadConfig(projectRoot);
+                            ctx.Status("Projecting artifacts into native agent locations...");
+                            var updatedConfig = ServiceFactory.Artifacts.ReadConfig(projectRoot);
                             ServiceFactory.Adapters.Project(projectRoot, updatedConfig);
                             config = updatedConfig;
                         });
@@ -195,7 +195,7 @@ public static class InitCommand
         }
 
 FinishInit:
-        var remainingRegistrySkills = registryUrl is not null
+        var remainingRegistryArtifacts = registryUrl is not null
             ? FindRemainingRegistrySkills(projectRoot, config)
             : [];
         var remainingRecommendedSkills = registryUrl is not null
@@ -207,7 +207,7 @@ FinishInit:
         foreach (var name in selectedAdapters)
         {
             foreach (var target in ServiceFactory.Adapters.DescribeTargets(projectRoot, name))
-                AnsiConsole.MarkupLine("  [dim]{0}[/]", target);
+                AnsiConsole.MarkupLine("  [dim]{0}: {1}[/]", target.Kind.DisplayNamePlural(), Markup.Escape(target.Path));
         }
         if (builtIns.Count > 0)
         {
@@ -217,11 +217,11 @@ FinishInit:
                 AnsiConsole.MarkupLine("  [dim]•[/] {0}", s);
         }
         if (registryUrl is null)
-            AnsiConsole.MarkupLine("[dim]Running in local-only mode. Ask your AI agent to create a skill for this project, or run [bold]lorex create[/] to scaffold one.[/]");
+            AnsiConsole.MarkupLine("[dim]Running in local-only mode. Ask your AI agent to create a skill or prompt for this project, or run [bold]lorex create[/] to scaffold one.[/]");
         else if (remainingRecommendedSkills.Count > 0)
             AnsiConsole.MarkupLine("[dim]This registry still has [bold]{0}[/] recommended skill(s) not installed in this project. Run [bold]lorex install --recommended[/] to add them, [bold]lorex list[/] to browse everything else, and [bold]lorex sync[/] later to refresh installed shared skills.[/]", remainingRecommendedSkills.Count);
-        else if (remainingRegistrySkills.Count > 0)
-            AnsiConsole.MarkupLine("[dim]This registry has [bold]{0}[/] additional shared skill(s) available. Run [bold]lorex list[/] to browse them, and [bold]lorex sync[/] later to refresh installed shared skills.[/]", remainingRegistrySkills.Count);
+        else if (remainingRegistryArtifacts.Count > 0)
+            AnsiConsole.MarkupLine("[dim]This registry has [bold]{0}[/] additional shared skill(s) available. Run [bold]lorex list[/] to browse them, and [bold]lorex sync[/] later to refresh installed shared skills.[/]", remainingRegistryArtifacts.Count);
         else
             AnsiConsole.MarkupLine("[dim]Run [bold]lorex sync[/] later to refresh installed shared skills.[/]");
         return 0;
@@ -240,7 +240,7 @@ FinishInit:
     {
         while (true)
         {
-            var knownRegistries = ServiceFactory.Skills.ReadGlobalConfig().Registries;
+            var knownRegistries = ServiceFactory.Artifacts.ReadGlobalConfig().Registries;
 
             var selected = AnsiConsole.Prompt(
                 new SelectionPrompt<string>()
@@ -373,7 +373,9 @@ FinishInit:
     private static string RenderAdapterChoice(string projectRoot, string adapterName, bool detected)
     {
         var targets = ServiceFactory.Adapters.DescribeTargets(projectRoot, adapterName);
-        var targetText = string.Join(", ", targets.Select(Markup.Escape));
+        var targetText = string.Join(
+            ", ",
+            targets.Select(target => $"{target.Kind.DisplayName()}: {Markup.Escape(target.Path)}"));
         var detectionText = detected ? "[green](detected)[/]" : "[dim](not detected)[/]";
         return $"[bold]{Markup.Escape(adapterName)}[/] {detectionText} [dim]- {targetText}[/]";
     }
@@ -383,15 +385,15 @@ FinishInit:
         if (config.Registry is null)
             return [];
 
-        IReadOnlyList<SkillMetadata> available = [];
+        IReadOnlyList<ArtifactMetadata> available = [];
         AnsiConsole.Status()
             .Start("Checking for recommended skills...", ctx =>
             {
                 ctx.Spinner(Spinner.Known.Dots);
-                available = ServiceFactory.Registry.ListAvailableSkills(config.Registry.Url, refresh: false);
+                available = ServiceFactory.Registry.ListAvailableArtifacts(config.Registry.Url, ArtifactKind.Skill, refresh: false);
             });
 
-        return ServiceFactory.RegistrySkills.GetRecommendedSkillNames(projectRoot, available, config);
+        return ServiceFactory.RegistryArtifacts.GetRecommendedArtifactNames(projectRoot, available, config, ArtifactKind.Skill);
     }
 
     private static List<string> FindRemainingRegistrySkills(string projectRoot, LorexConfig config)
@@ -399,14 +401,14 @@ FinishInit:
         if (config.Registry is null)
             return [];
 
-        IReadOnlyList<SkillMetadata> available = [];
+        IReadOnlyList<ArtifactMetadata> available = [];
         AnsiConsole.Status()
             .Start("Checking registry skills...", ctx =>
             {
                 ctx.Spinner(Spinner.Known.Dots);
-                available = ServiceFactory.Registry.ListAvailableSkills(config.Registry.Url, refresh: false);
+                available = ServiceFactory.Registry.ListAvailableArtifacts(config.Registry.Url, ArtifactKind.Skill, refresh: false);
             });
 
-        return ServiceFactory.RegistrySkills.GetInstallableSkillNames(available, config);
+        return ServiceFactory.RegistryArtifacts.GetInstallableArtifactNames(available, config, ArtifactKind.Skill);
     }
 }

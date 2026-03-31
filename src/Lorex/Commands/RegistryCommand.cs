@@ -81,7 +81,7 @@ public static class RegistryCommand
                 {
                     Registry = registryConfig with { Policy = updatedPolicy }
                 };
-                ServiceFactory.Skills.WriteConfig(projectRoot, updatedConfig);
+                ServiceFactory.Artifacts.WriteConfig(projectRoot, updatedConfig);
 
                 AnsiConsole.MarkupLine(
                     "[green]✓[/] Updated [bold]{0}[/] directly in the registry.",

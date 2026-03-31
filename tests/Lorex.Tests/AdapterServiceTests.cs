@@ -14,7 +14,7 @@ public sealed class AdapterServiceTests
             Policy = new RegistryPolicy(),
         },
         Adapters = ["codex"],
-        InstalledSkills = skills,
+        Artifacts = new ArtifactCollection { Skills = skills },
     };
 
     [Fact]
@@ -156,6 +156,40 @@ public sealed class AdapterServiceTests
             File.WriteAllText(Path.Combine(targetDir, "SKILL.md"), "# user");
 
             Assert.False(AdapterService.IsLorexManagedProjection(targetDir, lorexSkillsRoot));
+        }
+        finally
+        {
+            if (Directory.Exists(projectRoot))
+                Directory.Delete(projectRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void RenderMarkdownPrompt_UsesDescriptionAndBodyFromPrompt()
+    {
+        var service = new AdapterService();
+        var projectRoot = Path.Combine(Path.GetTempPath(), $"lorex-test-{Guid.NewGuid():N}");
+
+        try
+        {
+            var promptDir = Path.Combine(projectRoot, ".lorex", "prompts", "review-pr");
+            Directory.CreateDirectory(promptDir);
+            File.WriteAllText(Path.Combine(promptDir, "PROMPT.md"),
+                """
+                ---
+                name: review-pr
+                description: Review the pull request for regressions
+                version: 1.0.0
+                ---
+
+                Review the diff and call out bugs, risks, and missing tests.
+                """);
+
+            var rendered = service.RenderMarkdownPrompt(projectRoot, "review-pr");
+
+            Assert.Contains("description: \"Review the pull request for regressions\"", rendered);
+            Assert.Contains("Review the diff and call out bugs, risks, and missing tests.", rendered);
+            Assert.DoesNotContain("version: 1.0.0", rendered);
         }
         finally
         {

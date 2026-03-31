@@ -1,4 +1,5 @@
 using Lorex.Cli;
+using Lorex.Core.Models;
 using Lorex.Core.Services;
 using Spectre.Console;
 
@@ -15,12 +16,22 @@ public static class RefreshCommand
     {
         // Parse optional --target <adapter>
         string? target = null;
+        ArtifactKind? kind = null;
         for (var i = 0; i < args.Length - 1; i++)
         {
             if (args[i] is "--target" or "-t")
             {
                 target = args[i + 1];
-                break;
+            }
+            else if (args[i] == "--type")
+            {
+                if (!ArtifactKindExtensions.TryParseCliValue(args[i + 1], out var parsedKind))
+                {
+                    AnsiConsole.MarkupLine("[red]Error:[/] Unsupported artifact type '{0}'. Expected `skill` or `prompt`.", Markup.Escape(args[i + 1]));
+                    return 1;
+                }
+
+                kind = parsedKind;
             }
         }
 
@@ -28,14 +39,15 @@ public static class RefreshCommand
 
         try
         {
-            var config = ServiceFactory.Skills.ReadConfig(projectRoot);
+            var config = ServiceFactory.Artifacts.ReadConfig(projectRoot);
 
             if (target is not null)
-                ServiceFactory.Adapters.ProjectTarget(projectRoot, config, target);
+                ServiceFactory.Adapters.ProjectTarget(projectRoot, config, target, kind);
             else
-                ServiceFactory.Adapters.Project(projectRoot, config);
+                ServiceFactory.Adapters.Project(projectRoot, config, kind);
 
-            AnsiConsole.MarkupLine("[green]✓[/] Lorex projections refreshed for [bold]{0}[/].", target ?? "all adapters");
+            var kindLabel = kind is null ? "all artifact types" : kind.Value.DisplayNamePlural();
+            AnsiConsole.MarkupLine("[green]✓[/] Lorex projections refreshed for [bold]{0}[/] [dim]({1})[/].", target ?? "all adapters", kindLabel);
             return 0;
         }
         catch (Exception ex)

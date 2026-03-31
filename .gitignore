@@ -40,12 +40,20 @@ Thumbs.db
 .agents/skills/
 .claude/skills/
 .cline/skills/
+.clinerules/workflows/
 .github/skills/
+.github/prompts/
 .windsurf/skills/
+.windsurf/workflows/
 .opencode/skills/
+.opencode/commands/
+.claude/commands/
 .cursor/rules/lorex-*.mdc
+.cursor/commands/
 .roo/rules-code/lorex-*.md
+.roo/commands/
 .gemini/settings.json
+.gemini/commands/
 
 # Internal idea/planning notes
 *-Idea.md

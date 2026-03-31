@@ -1,11 +1,15 @@
 {
+  "registry": null,
   "adapters": [
     "copilot",
     "codex",
     "claude"
   ],
-  "installedSkills": [
-    "lorex",
-    "lorex-contributing"
-  ]
+  "artifacts": {
+    "skills": [
+      "lorex",
+      "lorex-contributing"
+    ],
+    "prompts": []
+  }
 }

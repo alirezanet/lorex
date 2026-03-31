@@ -1,26 +1,44 @@
 using Lorex.Cli;
+using Lorex.Core.Models;
 using Lorex.Core.Services;
 using Spectre.Console;
 
 namespace Lorex.Commands;
 
-/// <summary>Implements <c>lorex publish [skill…]</c>: pushes locally authored skills to the registry, then replaces them with symlinks.</summary>
+/// <summary>Implements <c>lorex publish [artifact…]</c>: pushes locally authored artifacts to the registry.</summary>
 public static class PublishCommand
 {
-    /// <summary>Runs the command. Returns 0 on success, 1 if any publish failed.</summary>
     public static int Run(string[] args)
     {
         var projectRoot = ProjectRootLocator.ResolveForExistingProject(Directory.GetCurrentDirectory());
-        var builtIns = BuiltInSkillService.SkillNames().ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        if (!RegistryCommandSupport.TryRefreshConfiguredRegistry(projectRoot, out var config))
+        ArtifactCliSupport.ParsedArtifactType parsedType;
+        try
+        {
+            parsedType = ArtifactCliSupport.ParseArtifactTypeOrDefault(args);
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine("[red]Error:[/] {0}", Markup.Escape(ex.Message));
+            return 1;
+        }
+
+        args = parsedType.RemainingArgs;
+
+        var interactive = args.Length == 0;
+        var kind = interactive && !parsedType.HasExplicitType
+            ? ArtifactCliSupport.PromptForArtifactKind("publish")
+            : parsedType.Kind;
+        var builtIns = kind == ArtifactKind.Skill
+            ? BuiltInSkillService.SkillNames().ToHashSet(StringComparer.OrdinalIgnoreCase)
+            : [];
+
+        if (!RegistryCommandSupport.TryRefreshConfiguredRegistry(projectRoot, out _))
             return 1;
 
         List<string> toPublish;
-
         if (args.Length > 0)
         {
-            // Names supplied on the command line
             toPublish = [];
             foreach (var arg in args.Where(a => !string.IsNullOrWhiteSpace(a)))
             {
@@ -30,23 +48,25 @@ public static class PublishCommand
                     AnsiConsole.MarkupLine("[dim]Run [bold]lorex create <new-name>[/] to scaffold a custom version.[/]");
                     return 1;
                 }
+
                 toPublish.Add(arg);
             }
         }
         else
         {
-            // Interactive multi-select
-            var local = ServiceFactory.Skills.LocalOnlySkills(projectRoot).ToArray();
-
+            var local = ServiceFactory.Artifacts.LocalOnlyArtifacts(projectRoot, kind).ToArray();
             if (local.Length == 0)
             {
-                AnsiConsole.MarkupLine("[red]No local skills to publish.[/] Ask your AI agent to create one, or run [bold]lorex create[/] to scaffold it.");
+                AnsiConsole.MarkupLine(
+                    "[red]No local {0} to publish.[/] Ask your AI agent to create one, or run [bold]lorex create{1}[/] to scaffold it.",
+                    kind.DisplayNamePlural(),
+                    kind == ArtifactKind.Skill ? string.Empty : " --type prompt");
                 return 1;
             }
 
             toPublish = AnsiConsole.Prompt(
                 new MultiSelectionPrompt<string>()
-                    .Title("[bold]Which local skills do you want to publish?[/]")
+                    .Title($"[bold]Which local {kind.DisplayNamePlural()} do you want to publish?[/]")
                     .InstructionsText("[dim](Space to select, Enter to confirm)[/]")
                     .AddChoices(local));
 
@@ -58,27 +78,27 @@ public static class PublishCommand
         }
 
         var failed = false;
-        foreach (var skillName in toPublish)
+        foreach (var artifactName in toPublish)
         {
             try
             {
-                Core.Models.PublishResult result = null!;
+                PublishResult result = null!;
                 AnsiConsole.Status()
-                    .Start($"Publishing [bold]{skillName}[/]...", ctx =>
+                    .Start($"Publishing [bold]{artifactName}[/]...", ctx =>
                     {
                         ctx.Spinner(Spinner.Known.Dots);
-                        result = ServiceFactory.Skills.PublishSkill(projectRoot, skillName, ServiceFactory.Git);
+                        result = ServiceFactory.Artifacts.PublishArtifact(projectRoot, kind, artifactName, ServiceFactory.Git);
                     });
 
-                if (string.Equals(result.PublishMode, Core.Models.RegistryPublishModes.Direct, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(result.PublishMode, RegistryPublishModes.Direct, StringComparison.OrdinalIgnoreCase))
                 {
-                    AnsiConsole.MarkupLine("[green]✓[/] Published [bold]{0}[/] directly to the registry.", skillName);
+                    AnsiConsole.MarkupLine("[green]✓[/] Published [bold]{0}[/] directly to the registry.", artifactName);
                 }
                 else
                 {
                     AnsiConsole.MarkupLine(
                         "[green]✓[/] Prepared [bold]{0}[/] for review on branch [bold]{1}[/] targeting [bold]{2}[/].",
-                        skillName,
+                        artifactName,
                         Markup.Escape(result.BranchName ?? string.Empty),
                         Markup.Escape(result.BaseBranch ?? string.Empty));
 
@@ -88,7 +108,7 @@ public static class PublishCommand
             }
             catch (Exception ex)
             {
-                AnsiConsole.MarkupLine("[red]✗[/] {0}: {1}", skillName, Markup.Escape(ex.Message));
+                AnsiConsole.MarkupLine("[red]✗[/] {0}: {1}", artifactName, Markup.Escape(ex.Message));
                 failed = true;
             }
         }

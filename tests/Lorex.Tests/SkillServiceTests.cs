@@ -6,7 +6,7 @@ namespace Lorex.Tests;
 public sealed class SkillServiceTests
 {
     [Fact]
-    public void DiscoverInstalledSkillNames_ReturnsExistingLorexSkillDirectories()
+    public void DiscoverInstalledArtifactNames_ReturnsExistingLorexSkillDirectories()
     {
         var projectRoot = Path.Combine(Path.GetTempPath(), $"lorex-test-{Guid.NewGuid():N}");
 
@@ -15,8 +15,8 @@ public sealed class SkillServiceTests
             Directory.CreateDirectory(Path.Combine(projectRoot, ".lorex", "skills", "lorex"));
             Directory.CreateDirectory(Path.Combine(projectRoot, ".lorex", "skills", "lorex-contributing"));
 
-            var service = new SkillService(new RegistryService(new GitService()));
-            var discovered = service.DiscoverInstalledSkillNames(projectRoot);
+            var service = new ArtifactService(new RegistryService(new GitService()));
+            var discovered = service.DiscoverInstalledArtifactNames(projectRoot, ArtifactKind.Skill);
 
             Assert.Contains("lorex", discovered);
             Assert.Contains("lorex-contributing", discovered);

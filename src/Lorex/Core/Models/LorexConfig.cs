@@ -12,6 +12,6 @@ public sealed record LorexConfig
     /// <summary>Adapter names whose native integration surfaces lorex maintains (for example <c>copilot</c>, <c>codex</c>).</summary>
     public string[] Adapters { get; init; } = [];
 
-    /// <summary>Skill names that have been installed into this project.</summary>
-    public string[] InstalledSkills { get; init; } = [];
+    /// <summary>Installed artifacts grouped by kind.</summary>
+    public ArtifactCollection Artifacts { get; init; } = new();
 }

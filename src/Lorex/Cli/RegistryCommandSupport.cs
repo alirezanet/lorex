@@ -7,7 +7,7 @@ internal static class RegistryCommandSupport
 {
     internal static bool TryReadConfiguredRegistry(string projectRoot, out LorexConfig config)
     {
-        config = ServiceFactory.Skills.ReadConfig(projectRoot);
+        config = ServiceFactory.Artifacts.ReadConfig(projectRoot);
         if (config.Registry is not null)
             return true;
 
@@ -25,7 +25,7 @@ internal static class RegistryCommandSupport
                 .Start(statusMessage, ctx =>
                 {
                     ctx.Spinner(Spinner.Known.Dots);
-                    loadedConfig = ServiceFactory.Skills.RefreshRegistryPolicy(projectRoot);
+                    loadedConfig = ServiceFactory.Artifacts.RefreshRegistryPolicy(projectRoot);
                 });
         }
         catch (Exception ex)

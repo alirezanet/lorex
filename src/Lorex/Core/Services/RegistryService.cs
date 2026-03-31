@@ -34,51 +34,54 @@ public sealed class RegistryService(GitService git)
         return cacheDir;
     }
 
-    /// <summary>Finds a skill folder inside the cached registry. Returns null if not found.</summary>
-    public string? FindSkillPath(string registryUrl, string skillName, bool refresh = true)
+    /// <summary>Finds an artifact folder inside the cached registry. Returns null if not found.</summary>
+    public string? FindArtifactPath(string registryUrl, Lorex.Core.Models.ArtifactKind kind, string artifactName, bool refresh = true)
     {
         var cacheDir = refresh ? EnsureCache(registryUrl) : GetCachePath(registryUrl);
-        var candidate = Path.Combine(cacheDir, "skills", skillName);
+        var candidate = Path.Combine(cacheDir, kind.FolderName(), artifactName);
         return Directory.Exists(candidate) ? candidate : null;
     }
 
-    /// <summary>Scans the cached registry and returns metadata for all available skills.</summary>
-    public IReadOnlyList<SkillMetadata> ListAvailableSkills(string registryUrl, bool refresh = true)
+    /// <summary>Scans the cached registry and returns metadata for all available artifacts of the requested kind.</summary>
+    public IReadOnlyList<Lorex.Core.Models.ArtifactMetadata> ListAvailableArtifacts(string registryUrl, Lorex.Core.Models.ArtifactKind kind, bool refresh = true)
     {
         var cacheDir = refresh ? EnsureCache(registryUrl) : GetCachePath(registryUrl);
-        var skillsRoot = Path.Combine(cacheDir, "skills");
+        var artifactsRoot = Path.Combine(cacheDir, kind.FolderName());
 
-        if (!Directory.Exists(skillsRoot))
+        if (!Directory.Exists(artifactsRoot))
             return [];
 
-        var results = new List<SkillMetadata>();
-        foreach (var dir in Directory.EnumerateDirectories(skillsRoot))
+        var results = new List<Lorex.Core.Models.ArtifactMetadata>();
+        foreach (var dir in Directory.EnumerateDirectories(artifactsRoot))
         {
-            var skillMd = SkillFileConvention.ResolveEntryPath(dir);
-            if (skillMd is not null)
+            var entryFile = ArtifactFileConvention.ResolveEntryPath(kind, dir);
+            if (entryFile is not null)
             {
                 try
                 {
-                    var meta = SimpleYamlParser.ParseSkillMetadataFromMarkdown(File.ReadAllText(skillMd));
+                    var meta = SimpleYamlParser.ParseArtifactMetadataFromMarkdown(File.ReadAllText(entryFile));
                     results.Add(meta);
                     continue;
                 }
                 catch (InvalidDataException) { /* no frontmatter — fall through to legacy check */ }
             }
 
-            // Legacy format: separate metadata.yaml
+            if (kind != Lorex.Core.Models.ArtifactKind.Skill)
+                continue;
+
+            // Legacy skill format: separate metadata.yaml
             var metaFile = Path.Combine(dir, "metadata.yaml");
             if (!File.Exists(metaFile))
                 continue;
 
             try
             {
-                var meta = SimpleYamlParser.ParseSkillMetadata(File.ReadAllText(metaFile));
+                var meta = SimpleYamlParser.ParseArtifactMetadata(File.ReadAllText(metaFile));
                 results.Add(meta);
             }
             catch (InvalidDataException)
             {
-                // Skip malformed skills silently — registry may contain work-in-progress entries
+                // Skip malformed artifacts silently — registry may contain work-in-progress entries
             }
         }
 

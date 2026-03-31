@@ -1,23 +1,28 @@
 ---
 name: lorex
-description: How to use lorex — the AI skill manager CLI — to install, manage, and author skills for AI coding agents.
+description: How to use lorex — the AI artifact manager CLI — to install, manage, and author reusable skills and prompts for AI coding agents.
 version: 1.0.0
-tags: lorex, ai-agents, skills, cli
+tags: lorex, ai-agents, skills, prompts, cli
 owner: lorex
 ---
 
 # lorex
 
-Lorex is a CLI that manages reusable AI skills and projects them into each agent's native integration surface. The canonical source of truth is `.lorex/skills/<name>/SKILL.md`; adapter outputs are derived from that store.
+Lorex is a CLI that manages reusable AI artifacts and projects them into each agent's native integration surface. The canonical source of truth is:
 
-> You are an AI agent reading this skill. Use it when the user asks about lorex usage, installed skills, adapter behavior, or how to create and share skills.
+- `.lorex/skills/<name>/SKILL.md`
+- `.lorex/prompts/<name>/PROMPT.md`
 
-## When a user asks what skills are available
+Adapter outputs are derived from those canonical stores.
+
+> You are an AI agent reading this skill. Use it when the user asks about lorex usage, installed artifacts, adapter behavior, or how to create and share skills and prompts.
+
+## When a user asks what is available
 
 1. Check `lorex status`
 2. Check `.lorex/lorex.json`
-3. List `.lorex/skills/`
-4. Read any installed `SKILL.md` files the user asks about
+3. List `.lorex/skills/` and `.lorex/prompts/`
+4. Read any installed `SKILL.md` or `PROMPT.md` files the user asks about
 
 Lorex commands resolve the project root by walking up from the current working directory to the nearest ancestor containing `.lorex/lorex.json`. Users do not need to run lorex from the repo root.
 
@@ -26,94 +31,26 @@ Lorex commands resolve the project root by walking up from the current working d
 | Command | Syntax | When to use |
 |---|---|---|
 | `init` | `lorex init [<url>] [--local] [--adapters a,b]` | Set up lorex in a project and load or initialize the registry policy |
-| `create` | `lorex create [<name>] [-d desc] [-t tags] [-o owner]` | Scaffold a new local skill |
-| `install` | `lorex install [<skill>…] [--all] [--recommended]` | Install skills from the registry into this project |
-| `uninstall` | `lorex uninstall [<skill>…] [--all]` | Remove installed skills from this project |
-| `list` | `lorex list` | Browse skills available in the registry |
-| `status` | `lorex status` | Show installed skills, registry state, and adapter targets |
-| `sync` | `lorex sync` | Pull the latest versions and registry policy from the registry |
-| `publish` | `lorex publish [<skill>…]` | Contribute local skills using the registry's publish policy |
+| `create` | `lorex create [<name>] [-d desc] [-t tags] [-o owner] [--type skill|prompt]` | Scaffold a new local artifact |
+| `install` | `lorex install [<artifact>…] [--all] [--recommended] [--type skill|prompt]` | Install registry artifacts into this project |
+| `uninstall` | `lorex uninstall [<artifact>…] [--all] [--type skill|prompt]` | Remove installed artifacts from this project |
+| `list` | `lorex list [--type skill|prompt]` | Browse registry artifacts of one kind |
+| `status` | `lorex status [--type skill|prompt]` | Show installed artifacts, registry state, and adapter targets |
+| `sync` | `lorex sync [--type skill|prompt]` | Pull the latest shared artifacts and registry policy from the registry |
+| `publish` | `lorex publish [<artifact>…] [--type skill|prompt]` | Contribute local artifacts using the registry's publish policy |
+| `show` | `lorex show prompt <name>` | Print a canonical prompt for manual use on adapters without prompt projection |
 | `registry` | `lorex registry` | Interactively update the connected registry's publish policy |
-| `refresh` | `lorex refresh [--target adapter]` | Re-project skills into native agent locations after skill edits |
+| `refresh` | `lorex refresh [--target adapter] [--type skill|prompt]` | Re-project lorex artifacts into native agent locations after edits |
 
-`list`, `install`, `sync`, `publish`, and `registry` require a registry. `create`, `status`, and `refresh` work in local-only mode.
+`list`, `install`, `sync`, `publish`, and `registry` require a registry. `create`, `status`, `show`, and `refresh` work in local-only mode.
 
-Running `lorex init` with no arguments opens a guided setup flow:
+### `--type` behavior
 
-1. Choose a saved registry, enter a new registry URL, or keep the repo local-only
-2. Choose which agent integrations lorex should maintain
-3. If the registry has no manifest yet, choose its publish mode so lorex can initialize it
+- `--type` defaults to `skill` in non-interactive command usage
+- interactive `create`, `install`, `uninstall`, and `publish` ask which artifact type to use when `--type` is omitted
+- `status`, `sync`, and `refresh` operate on both kinds by default and accept `--type` as an optional filter
 
-When a connected registry already has skills that this project does not have installed, `lorex init` finishes by pointing users to `lorex install --recommended` or `lorex list`, and reminds them to use `lorex sync` later to refresh installed shared skills.
-
-Running `lorex install` with no skill names opens an interactive flow where users can install recommended skills, install everything, or choose a subset. Recommendations are based on exact tag matches against the current repo slug like `owner/repo`, or the folder name if no git slug is available. `lorex uninstall` similarly supports `--all` or an interactive flow to remove all installed skills or choose a subset.
-
-If a registry install or sync would replace an existing local skill directory in `.lorex/skills`, lorex asks for explicit approval per skill before overwriting it.
-
-Shared registries declare their own contribution policy in `/.lorex-registry.json`:
-
-- `direct`: `lorex publish` commits and pushes straight to the registry
-- `pull-request`: `lorex publish` creates a branch, pushes it, and prints a PR URL when possible
-- `read-only`: `lorex publish` is blocked
-
-Run `lorex registry` to change that policy interactively. If the registry currently uses `direct`, lorex updates `/.lorex-registry.json` immediately. If it currently uses `pull-request`, lorex prepares a review branch and leaves the project on the existing policy until that PR is merged and `lorex sync` is run.
-
-## Supported adapters
-
-| Key | Native target maintained by lorex |
-|---|---|
-| `copilot` | `.github/skills/` |
-| `codex` | `.agents/skills/` |
-| `cursor` | `.cursor/rules/` |
-| `claude` | `.claude/skills/` |
-| `windsurf` | `.windsurf/skills/` |
-| `cline` | `.cline/skills/` |
-| `roo` | `.roo/rules-code/` |
-| `gemini` | `.gemini/settings.json` plus `.lorex/skills/*` as context directories |
-| `opencode` | `.opencode/skills/` |
-
-## How to create a skill
-
-Always start with `lorex create`. It creates the folder, writes the frontmatter template, registers the skill in `.lorex/lorex.json`, and refreshes adapter projections.
-
-```sh
-lorex create <skill-name> -d "One-line description" -t "tag1,tag2" -o "owner"
-
-# Then edit:
-# .lorex/skills/<skill-name>/SKILL.md
-```
-
-Only run `lorex refresh` manually after editing an existing skill.
-
-`lorex init` also re-discovers any skills already present under `.lorex/skills/` and adds them back to `installedSkills`, so re-initialising a project does not orphan existing local skills.
-
-## Skill format
-
-A lorex skill lives at `.lorex/skills/<name>/SKILL.md`.
-
-```markdown
----
-name: my-skill
-description: One sentence used by agents to decide when this skill matters
-version: 1.0.0
-tags: topic, subtopic
-owner: team-or-person
----
-
-# My Skill
-
-Free-form markdown instructions.
-```
-
-Field notes:
-
-- `name` and `description` are required
-- `description` is used by agent-native skill systems and Lorex-generated rule wrappers
-- `version` is used by `lorex sync`
-- Lorex still reads legacy `skill.md` files for compatibility
-- A skill directory can include scripts, templates, examples, or other supporting files
-
-## Project layout
+## Canonical project layout
 
 ```text
 .lorex/
@@ -123,13 +60,105 @@ Field notes:
       SKILL.md
       scripts/
       docs/
+  prompts/
+    <prompt-name>/
+      PROMPT.md
 ```
 
-Registry-backed skills are symlinked into `.lorex/skills`. Lorex requires symlink support for registry installs and native skill projections.
+`.lorex/lorex.json` stores:
 
-The agent-specific projection folders are derived outputs. The canonical state to commit is `.lorex/lorex.json` plus `.lorex/skills/`; generated adapter folders should usually be gitignored.
+- selected adapters
+- optional registry config and effective registry policy
+- installed artifacts grouped under `artifacts.skills` and `artifacts.prompts`
 
-When a project is connected to a registry, `.lorex/lorex.json` caches the registry URL plus the effective registry policy. The registry remains the policy owner.
+Registry-backed artifacts are symlinked into `.lorex/skills` or `.lorex/prompts`. Lorex requires symlink support for registry installs and native skill-folder projections.
+
+## Artifact formats
+
+Lorex skills and prompts use the same frontmatter fields:
+
+```markdown
+---
+name: my-artifact
+description: One sentence used by lorex and adapters
+version: 1.0.0
+tags: topic, subtopic
+owner: team-or-person
+---
+```
+
+Canonical files:
+
+- skill: `.lorex/skills/<name>/SKILL.md`
+- prompt: `.lorex/prompts/<name>/PROMPT.md`
+
+Lorex still reads legacy `skill.md` files for compatibility. Prompts use `PROMPT.md` only.
+
+## Adapter projections
+
+Lorex keeps the canonical artifact store in `.lorex/` and projects derived files into agent-native locations.
+
+| Adapter | Skills | Prompts |
+|---|---|---|
+| `copilot` | `.github/skills/` symlink directories | `.github/prompts/*.prompt.md` and `.vscode/settings.json` with `chat.promptFiles: true` |
+| `codex` | `.agents/skills/` symlink directories | no native projection; use `lorex show prompt <name>` |
+| `cursor` | `.cursor/rules/lorex-*.mdc` generated rules | `.cursor/commands/*.md` |
+| `claude` | `.claude/skills/` symlink directories | `.claude/commands/*.md` |
+| `windsurf` | `.windsurf/skills/` symlink directories | `.windsurf/workflows/*.md` |
+| `cline` | `.cline/skills/` symlink directories | `.clinerules/workflows/*.md` |
+| `roo` | `.roo/rules-code/lorex-*.md` generated rules | `.roo/commands/*.md` |
+| `gemini` | `.gemini/settings.json` plus `.lorex/skills/*` as context directories | `.gemini/commands/*.toml` |
+| `opencode` | `.opencode/skills/` symlink directories | `.opencode/commands/*.md` |
+
+For skills, adapters either use native skill directories or generated rule/settings files. For prompts, adapters receive generated native prompt/command/workflow files when a repo-local prompt surface exists.
+
+The agent-specific projection folders are derived outputs. The canonical state to commit is `.lorex/lorex.json` plus `.lorex/skills/` and `.lorex/prompts/`; generated adapter folders should usually be gitignored.
+
+## Common flows
+
+### Create a skill
+
+```sh
+lorex create auth-overview -d "Authentication flows and constraints" -t "auth,security" -o "platform"
+```
+
+Then edit `.lorex/skills/auth-overview/SKILL.md`.
+
+### Create a prompt
+
+```sh
+lorex create review-pr --type prompt -d "Review a pull request for bugs and regressions" -t "review,qa" -o "platform"
+```
+
+Then edit `.lorex/prompts/review-pr/PROMPT.md`.
+
+### Install from a registry
+
+```sh
+lorex install auth-overview
+lorex install --type prompt review-pr
+```
+
+### Browse registry artifacts
+
+```sh
+lorex list
+lorex list --type prompt
+```
+
+### Refresh projections
+
+```sh
+lorex refresh
+lorex refresh --type prompt
+lorex refresh --target claude
+```
+
+### Show a prompt for Codex or another unsupported adapter
+
+```sh
+lorex show prompt review-pr
+```
 
 ## Registry layout
 
@@ -138,20 +167,26 @@ When a project is connected to a registry, `.lorex/lorex.json` caches the regist
 skills/
   auth-overview/
     SKILL.md
-  deployment/
-    SKILL.md
-    scripts/
+prompts/
+  review-pr/
+    PROMPT.md
 ```
+
+Shared registries declare their own contribution policy in `/.lorex-registry.json`:
+
+- `direct`: `lorex publish` commits and pushes straight to the registry
+- `pull-request`: `lorex publish` creates a branch, pushes it, and prints a PR URL when possible
+- `read-only`: `lorex publish` is blocked
 
 ## Troubleshooting
 
 | Symptom | Fix |
 |---|---|
-| Skill not appearing in an agent | Run `lorex refresh` |
+| Artifact not appearing in an agent | Run `lorex refresh` |
+| Prompt not showing up in Copilot | Confirm `.github/prompts/` exists and `.vscode/settings.json` contains `"chat.promptFiles": true` |
+| Gemini not loading lorex skills | Confirm `.gemini/settings.json` exists and `context.loadFromIncludeDirectories` is `true` |
+| Codex has no repo prompt file | Use `lorex show prompt <name>` |
 | `lorex publish` opens a branch instead of pushing directly | The registry policy is `pull-request`; check `lorex status` |
 | `lorex publish` is blocked | The registry policy is `read-only`; the registry owner must change `/.lorex-registry.json` |
-| `lorex registry` opens a branch instead of changing the policy immediately | The current registry policy is `pull-request`; merge the generated PR branch, then run `lorex sync` |
-| Old `AGENTS.md` / `CLAUDE.md` files still exist | Lorex removes its legacy managed block during refresh; delete the file if it is now empty |
+| Old `AGENTS.md` / `CLAUDE.md` / `GEMINI.md` files still exist | Lorex removes its legacy managed block during refresh; delete the file if it is now empty |
 | Symlinks not working on Windows | Enable Developer Mode or otherwise allow symlink creation; lorex requires symlinks for registry installs and native skill projections |
-| Gemini not loading lorex skills | Confirm `.gemini/settings.json` exists and `context.loadFromIncludeDirectories` is `true` |
-| Published skill still shows as local | Run `lorex status`; registry-backed installs should show as `symlink` when available |

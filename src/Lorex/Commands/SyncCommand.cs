@@ -1,10 +1,11 @@
 using Lorex.Cli;
+using Lorex.Core.Models;
 using Lorex.Core.Services;
 using Spectre.Console;
 
 namespace Lorex.Commands;
 
-/// <summary>Implements <c>lorex sync</c>: pulls the registry cache so all symlinked skills reflect the latest content.</summary>
+/// <summary>Implements <c>lorex sync</c>: pulls the registry cache so installed registry artifacts reflect the latest content.</summary>
 public static class SyncCommand
 {
     /// <summary>Runs the command. Returns 0 on success, 1 on failure.</summary>
@@ -14,61 +15,99 @@ public static class SyncCommand
 
         try
         {
+            var parsedType = ArtifactCliSupport.ParseOptionalArtifactType(args);
+            if (parsedType.RemainingArgs.Length > 0)
+            {
+                AnsiConsole.MarkupLine("[red]Usage:[/] lorex sync [[bold]--type skill|prompt[/]]");
+                return 1;
+            }
+
+            var kindFilter = parsedType.Kind;
             if (!RegistryCommandSupport.TryReadConfiguredRegistry(projectRoot, out var cfg))
                 return 1;
 
-            IReadOnlyList<string> updated = [];
-            List<string> skipped = [];
+            var updatedByKind = new Dictionary<ArtifactKind, IReadOnlyList<string>>();
+            var skippedByKind = new Dictionary<ArtifactKind, List<string>>();
             Lorex.Core.Models.LorexConfig refreshedConfig = cfg;
 
             if (!RegistryCommandSupport.TryRefreshConfiguredRegistry(projectRoot, out refreshedConfig, "Refreshing registry..."))
                 return 1;
 
-            var overwriteCandidates = refreshedConfig.InstalledSkills
-                .Where(skillName =>
-                    ServiceFactory.Skills.RequiresOverwriteApproval(projectRoot, skillName)
-                    && ServiceFactory.Registry.FindSkillPath(refreshedConfig.Registry!.Url, skillName, refresh: false) is not null)
-                .ToList();
-
-            var (approvedOverwriteSkills, skippedOverwriteSkills) = SkillOverwritePrompts.ResolveApprovedOverrides(
-                projectRoot,
-                overwriteCandidates,
-                skillName => $"Sync will replace local skill [bold]{Markup.Escape(skillName)}[/] with the registry version. Continue?");
-            skipped = skippedOverwriteSkills;
+            var kinds = kindFilter is null
+                ? new[] { ArtifactKind.Skill, ArtifactKind.Prompt }
+                : new[] { kindFilter.Value };
+            var hasUpdates = false;
 
             AnsiConsole.Status()
-                .Start("Syncing skills from registry...", ctx =>
+                .Start("Syncing artifacts from registry...", ctx =>
                 {
                     ctx.Spinner(Spinner.Known.Dots);
-                    updated = ServiceFactory.Skills.SyncSkills(projectRoot, approvedOverwriteSkills, refreshRegistry: false);
 
-                    if (updated.Count > 0)
+                    foreach (var kind in kinds)
                     {
-                        ctx.Status("Projecting skills into native agent locations...");
-                        var config = ServiceFactory.Skills.ReadConfig(projectRoot);
-                        ServiceFactory.Adapters.Project(projectRoot, config);
+                        var overwriteCandidates = refreshedConfig.Artifacts.Get(kind)
+                            .Where(artifactName =>
+                                ServiceFactory.Artifacts.RequiresOverwriteApproval(projectRoot, kind, artifactName)
+                                && ServiceFactory.Registry.FindArtifactPath(refreshedConfig.Registry!.Url, kind, artifactName, refresh: false) is not null)
+                            .ToList();
+
+                        var (approvedOverwriteArtifacts, skippedOverwriteArtifacts) = ArtifactOverwritePrompts.ResolveApprovedOverrides(
+                            projectRoot,
+                            kind,
+                            overwriteCandidates,
+                            artifactName => $"Sync will replace local {kind.DisplayName()} [bold]{Markup.Escape(artifactName)}[/] with the registry version. Continue?");
+
+                        skippedByKind[kind] = skippedOverwriteArtifacts;
+
+                        ctx.Status($"Syncing {kind.DisplayNamePlural()}...");
+                        var updated = ServiceFactory.Artifacts.SyncArtifacts(projectRoot, kind, approvedOverwriteArtifacts, refreshRegistry: false);
+                        updatedByKind[kind] = updated;
+                        hasUpdates |= updated.Count > 0;
                     }
+
+                    if (!hasUpdates)
+                        return;
+
+                    ctx.Status("Projecting artifacts into native agent locations...");
+                    var config = ServiceFactory.Artifacts.ReadConfig(projectRoot);
+                    ServiceFactory.Adapters.Project(projectRoot, config, kindFilter);
                 });
 
-            if (updated.Count == 0 && skipped.Count == 0)
-                AnsiConsole.MarkupLine("[green]✓[/] All skills are up to date.");
-            else
+            var skippedCount = skippedByKind.Values.Sum(names => names.Count);
+            if (!hasUpdates && skippedCount == 0)
             {
-                if (updated.Count > 0)
-                {
-                    AnsiConsole.MarkupLine("[green]✓[/] Registry pulled — [bold]{0}[/] skill(s) reflect latest content:", updated.Count);
-                    foreach (var name in updated)
-                        AnsiConsole.MarkupLine("  • {0}", name);
-                    AnsiConsole.MarkupLine("[dim](Symlinked skills updated automatically via cache pull.)[/]");
-                }
-                else
-                {
-                    AnsiConsole.MarkupLine("[green]✓[/] Registry pulled.");
-                }
+                var kindLabel = kindFilter is null ? "artifacts" : kindFilter.Value.DisplayNamePlural();
+                AnsiConsole.MarkupLine("[green]✓[/] All {0} are up to date.", kindLabel);
+                return 0;
             }
 
-            foreach (var name in skipped)
-                AnsiConsole.MarkupLine("[yellow]Skipped[/] [bold]{0}[/] [dim](kept existing local skill)[/]", name);
+            if (!hasUpdates)
+            {
+                AnsiConsole.MarkupLine("[green]✓[/] Registry pulled.");
+            }
+            else
+            {
+                foreach (var kind in kinds)
+                {
+                    if (!updatedByKind.TryGetValue(kind, out var updated) || updated.Count == 0)
+                        continue;
+
+                    AnsiConsole.MarkupLine("[green]✓[/] [bold]{0}[/] {1} reflect the latest registry content:", updated.Count, kind.DisplayNamePlural());
+                    foreach (var name in updated)
+                        AnsiConsole.MarkupLine("  • {0}", name);
+                }
+
+                AnsiConsole.MarkupLine("[dim](Registry-backed artifacts update automatically through the shared cache.)[/]");
+            }
+
+            foreach (var kind in kinds)
+            {
+                if (!skippedByKind.TryGetValue(kind, out var skipped))
+                    continue;
+
+                foreach (var name in skipped)
+                    AnsiConsole.MarkupLine("[yellow]Skipped[/] [bold]{0}[/] [dim](kept existing local {1})[/]", name, kind.DisplayName());
+            }
 
             return 0;
         }

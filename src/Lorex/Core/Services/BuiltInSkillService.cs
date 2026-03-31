@@ -46,17 +46,17 @@ internal static class BuiltInSkillService
         foreach (var skillName in SkillNames())
         {
             // Don't overwrite a registry-installed skill with the same name
-            if (config.InstalledSkills.Contains(skillName)) continue;
+            if (config.Artifacts.Skills.Contains(skillName, StringComparer.OrdinalIgnoreCase)) continue;
 
             var content = ReadSkillContent(skillName);
             if (content is null) continue;
 
             var skillDir = Path.Combine(projectRoot, ".lorex", "skills", skillName);
             Directory.CreateDirectory(skillDir);
-            if (SkillFileConvention.ResolveEntryPath(skillDir) is not null)
+            if (ArtifactFileConvention.ResolveEntryPath(Lorex.Core.Models.ArtifactKind.Skill, skillDir) is not null)
                 continue;
 
-            File.WriteAllText(SkillFileConvention.CanonicalPath(skillDir), content);
+            File.WriteAllText(ArtifactFileConvention.CanonicalPath(Lorex.Core.Models.ArtifactKind.Skill, skillDir), content);
             installed.Add(skillName);
         }
 

@@ -1,25 +1,27 @@
+using Lorex.Core.Models;
 using Lorex.Core.Serialization;
 
 namespace Lorex.Core.Services;
 
 /// <summary>
-/// Centralizes lorex skill file naming and parsing helpers.
+/// Centralizes lorex artifact file naming and parsing helpers.
 /// </summary>
-internal static class SkillFileConvention
+internal static class ArtifactFileConvention
 {
-    internal const string CanonicalFileName = "SKILL.md";
-    internal const string LegacyFileName = "skill.md";
+    internal static string CanonicalPath(ArtifactKind kind, string artifactDirectory) =>
+        Path.Combine(artifactDirectory, kind.CanonicalFileName());
 
-    internal static string CanonicalPath(string skillDirectory) =>
-        Path.Combine(skillDirectory, CanonicalFileName);
-
-    internal static string? ResolveEntryPath(string skillDirectory)
+    internal static string? ResolveEntryPath(ArtifactKind kind, string artifactDirectory)
     {
-        var canonical = CanonicalPath(skillDirectory);
+        var canonical = CanonicalPath(kind, artifactDirectory);
         if (File.Exists(canonical))
             return canonical;
 
-        var legacy = Path.Combine(skillDirectory, LegacyFileName);
+        var legacyFileName = kind.LegacyFileName();
+        if (legacyFileName is null)
+            return null;
+
+        var legacy = Path.Combine(artifactDirectory, legacyFileName);
         return File.Exists(legacy) ? legacy : null;
     }
 

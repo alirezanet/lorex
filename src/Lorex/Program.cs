@@ -24,6 +24,7 @@ try
         "publish"   => PublishCommand.Run(rest),
         "registry"  => RegistryCommand.Run(rest),
         "sync"      => SyncCommand.Run(rest),
+        "show"      => ShowCommand.Run(rest),
         "list"      => ListCommand.Run(rest),
         "status"    => StatusCommand.Run(rest),
         "refresh"   => RefreshCommand.Run(rest),
@@ -66,15 +67,16 @@ static int PrintHelp()
         => grid.AddRow($"  [bold]{cmd}[/]", $"[dim]{args}[/]", desc);
 
     Row("init",      "[[<url>]] [[--local]] [[--adapters a,b]]", "Configure a registry (or run local-only) and set up this project");
-    Row("install",   "[[<skill>…]] [[--all]] [[--recommended]]",       "Install skills from the registry, or choose interactively");
-    Row("uninstall", "[[<skill>…]] [[--all]]",       "Remove installed skills, or choose interactively");
-    Row("list",      "",                   "List skills available in the registry");
-    Row("status",    "",                   "Show installed skills and their state");
-    Row("sync",      "",                   "Pull latest skill versions from the registry");
-    Row("create",    "[[<name>]] [[-d desc]] [[-t tags]] [[-o owner]]", "Scaffold a new skill for AI/manual authoring");
-    Row("publish",   "[[<skill>…]]",          "Push local skills to the registry");
+    Row("install",   "[[<artifact>…]] [[--all]] [[--recommended]] [[--type skill|prompt]]", "Install registry artifacts, or choose interactively");
+    Row("uninstall", "[[<artifact>…]] [[--all]] [[--type skill|prompt]]", "Remove installed artifacts, or choose interactively");
+    Row("list",      "[[--type skill|prompt]]", "List registry artifacts of one type");
+    Row("status",    "[[--type skill|prompt]]", "Show installed artifacts and their state");
+    Row("sync",      "[[--type skill|prompt]]", "Pull latest shared artifacts from the registry");
+    Row("create",    "[[<name>]] [[-d desc]] [[-t tags]] [[-o owner]] [[--type skill|prompt]]", "Scaffold a new local artifact");
+    Row("publish",   "[[<artifact>…]] [[--type skill|prompt]]", "Push local artifacts to the registry");
+    Row("show",      "prompt <name>", "Print a canonical prompt for manual use");
     Row("registry",  "",                   "Interactively configure the connected registry policy");
-    Row("refresh",   "[[--target adapter]]", "Re-project lorex skills into native agent locations");
+    Row("refresh",   "[[--target adapter]] [[--type skill|prompt]]", "Re-project lorex artifacts into native agent locations");
 
     AnsiConsole.WriteLine();
     AnsiConsole.Write(new FigletText("lorex").Color(Color.Blue));

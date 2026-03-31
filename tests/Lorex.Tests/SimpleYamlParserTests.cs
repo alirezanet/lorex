@@ -47,7 +47,7 @@ public sealed class SimpleYamlParserTests
     }
 
     [Fact]
-    public void ParseSkillMetadata_FullYaml_MapsAllFields()
+    public void ParseArtifactMetadata_FullYaml_MapsAllFields()
     {
         const string yaml = """
             name: auth-overview
@@ -57,7 +57,7 @@ public sealed class SimpleYamlParserTests
             owner: platform-team
             """;
 
-        var meta = SimpleYamlParser.ParseSkillMetadata(yaml);
+        var meta = SimpleYamlParser.ParseArtifactMetadata(yaml);
 
         Assert.Equal("auth-overview", meta.Name);
         Assert.Equal("Authentication service overview, supported flows and constraints", meta.Description);
@@ -67,14 +67,14 @@ public sealed class SimpleYamlParserTests
     }
 
     [Fact]
-    public void ParseSkillMetadata_MissingOptionalFields_UsesDefaults()
+    public void ParseArtifactMetadata_MissingOptionalFields_UsesDefaults()
     {
         const string yaml = """
             name: minimal-skill
             description: A minimal skill
             """;
 
-        var meta = SimpleYamlParser.ParseSkillMetadata(yaml);
+        var meta = SimpleYamlParser.ParseArtifactMetadata(yaml);
 
         Assert.Equal("1.0.0", meta.Version);
         Assert.Empty(meta.Tags);
@@ -82,15 +82,15 @@ public sealed class SimpleYamlParserTests
     }
 
     [Fact]
-    public void ParseSkillMetadata_MissingRequiredField_ThrowsInvalidDataException()
+    public void ParseArtifactMetadata_MissingRequiredField_ThrowsInvalidDataException()
     {
         const string yaml = "description: No name here";
 
-        Assert.Throws<InvalidDataException>(() => SimpleYamlParser.ParseSkillMetadata(yaml));
+        Assert.Throws<InvalidDataException>(() => SimpleYamlParser.ParseArtifactMetadata(yaml));
     }
 
     [Fact]
-    public void ParseSkillMetadata_TagsWithExtraWhitespace_AreTrimmed()
+    public void ParseArtifactMetadata_TagsWithExtraWhitespace_AreTrimmed()
     {
         const string yaml = """
             name: test
@@ -98,7 +98,7 @@ public sealed class SimpleYamlParserTests
             tags:  auth ,  security ,   identity
             """;
 
-        var meta = SimpleYamlParser.ParseSkillMetadata(yaml);
+        var meta = SimpleYamlParser.ParseArtifactMetadata(yaml);
 
         Assert.Equal(["auth", "security", "identity"], meta.Tags);
     }
@@ -161,7 +161,7 @@ public sealed class SimpleYamlParserTests
     }
 
     [Fact]
-    public void ParseSkillMetadataFromMarkdown_WithFrontmatter_MapsAllFields()
+    public void ParseArtifactMetadataFromMarkdown_WithFrontmatter_MapsAllFields()
     {
         const string markdown = """
             ---
@@ -177,7 +177,7 @@ public sealed class SimpleYamlParserTests
             Content.
             """;
 
-        var meta = SimpleYamlParser.ParseSkillMetadataFromMarkdown(markdown);
+        var meta = SimpleYamlParser.ParseArtifactMetadataFromMarkdown(markdown);
 
         Assert.Equal("checkout-flow", meta.Name);
         Assert.Equal("Checkout lifecycle and payment edge cases", meta.Description);
@@ -187,11 +187,11 @@ public sealed class SimpleYamlParserTests
     }
 
     [Fact]
-    public void ParseSkillMetadataFromMarkdown_NoFrontmatter_ThrowsInvalidDataException()
+    public void ParseArtifactMetadataFromMarkdown_NoFrontmatter_ThrowsInvalidDataException()
     {
         const string markdown = "# heading\n\nNo frontmatter here.";
 
         Assert.Throws<InvalidDataException>(() =>
-            SimpleYamlParser.ParseSkillMetadataFromMarkdown(markdown));
+            SimpleYamlParser.ParseArtifactMetadataFromMarkdown(markdown));
     }
 }

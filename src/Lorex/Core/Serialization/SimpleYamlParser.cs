@@ -3,7 +3,7 @@ using Lorex.Core.Models;
 namespace Lorex.Core.Serialization;
 
 /// <summary>
-/// Minimal YAML parser for lorex skill files.
+/// Minimal YAML parser for lorex artifact files.
 /// Supports:
 ///   - Standalone key: value YAML
 ///   - YAML frontmatter between --- delimiters at the top of a markdown file
@@ -33,22 +33,22 @@ public static class SimpleYamlParser
         return null; // no closing ---
     }
 
-    /// <summary>Parses skill metadata from YAML frontmatter in a markdown file.</summary>
-    public static SkillMetadata ParseSkillMetadataFromMarkdown(string markdownContent)
+    /// <summary>Parses artifact metadata from YAML frontmatter in a markdown file.</summary>
+    public static ArtifactMetadata ParseArtifactMetadataFromMarkdown(string markdownContent)
     {
         var yaml = ExtractFrontmatterYaml(markdownContent)
             ?? throw new InvalidDataException(
                 "Markdown file has no YAML frontmatter. Expected --- delimiters at the top of the file.");
-        return ParseSkillMetadata(yaml);
+        return ParseArtifactMetadata(yaml);
     }
 
     // ── Standalone YAML ───────────────────────────────────────────────────────
 
-    public static SkillMetadata ParseSkillMetadata(string yaml)
+    public static ArtifactMetadata ParseArtifactMetadata(string yaml)
     {
         var dict = ParseToDictionary(yaml);
 
-        return new SkillMetadata
+        return new ArtifactMetadata
         {
             Name = GetRequired(dict, "name"),
             Description = GetRequired(dict, "description"),

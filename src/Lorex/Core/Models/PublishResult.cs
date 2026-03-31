@@ -1,11 +1,13 @@
 namespace Lorex.Core.Models;
 
 /// <summary>
-/// Result of publishing a skill to a registry.
+/// Result of publishing an artifact to a registry.
 /// </summary>
 public sealed record PublishResult
 {
-    public required string SkillName { get; init; }
+    public required ArtifactKind ArtifactKind { get; init; }
+
+    public required string ArtifactName { get; init; }
 
     public required string PublishMode { get; init; }
 

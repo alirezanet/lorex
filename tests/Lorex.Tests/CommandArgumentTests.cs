@@ -8,54 +8,54 @@ namespace Lorex.Tests;
 public sealed class CommandArgumentTests
 {
     [Fact]
-    public void InstallCommand_ParseSkillNames_FiltersAllFlagAndDeduplicates()
+    public void InstallCommand_ParseArtifactNames_FiltersAllFlagAndDeduplicates()
     {
-        var parsed = InstallCommand.ParseSkillNames(["auth", "--all", "Auth", "api"]);
+        var parsed = InstallCommand.ParseArtifactNames(["auth", "--all", "Auth", "api"]);
 
         Assert.Equal(["auth", "api"], parsed);
     }
 
     [Fact]
-    public void InstallCommand_ParseSkillNames_FiltersRecommendedFlag()
+    public void InstallCommand_ParseArtifactNames_FiltersRecommendedFlag()
     {
-        var parsed = InstallCommand.ParseSkillNames(["auth", "--recommended", "api"]);
+        var parsed = InstallCommand.ParseArtifactNames(["auth", "--recommended", "api"]);
 
         Assert.Equal(["auth", "api"], parsed);
     }
 
     [Fact]
-    public void RegistrySkillQueryService_GetInstallableSkillNames_ExcludesAlreadyInstalledSkills()
+    public void RegistryArtifactQueryService_GetInstallableArtifactNames_ExcludesAlreadyInstalledSkills()
     {
         var config = new LorexConfig
         {
-            InstalledSkills = ["auth"],
+            Artifacts = new ArtifactCollection { Skills = ["auth"] },
         };
-        var service = new RegistrySkillQueryService(new RegistryService(new GitService()), new GitService());
+        var service = new RegistryArtifactQueryService(new RegistryService(new GitService()), new GitService());
 
         var available = new[]
         {
-            new SkillMetadata { Name = "api", Description = "API" },
-            new SkillMetadata { Name = "auth", Description = "Auth" },
-            new SkillMetadata { Name = "build", Description = "Build" },
+            new ArtifactMetadata { Name = "api", Description = "API" },
+            new ArtifactMetadata { Name = "auth", Description = "Auth" },
+            new ArtifactMetadata { Name = "build", Description = "Build" },
         };
 
-        var installable = service.GetInstallableSkillNames(available, config);
+        var installable = service.GetInstallableArtifactNames(available, config, ArtifactKind.Skill);
 
         Assert.Equal(["api", "build"], installable);
     }
 
     [Fact]
-    public void RegistrySkillQueryService_IsRecommendedForProject_MatchesProjectTags()
+    public void RegistryArtifactQueryService_IsRecommendedForProject_MatchesProjectTags()
     {
-        var service = new RegistrySkillQueryService(new RegistryService(new GitService()), new GitService());
+        var service = new RegistryArtifactQueryService(new RegistryService(new GitService()), new GitService());
 
-        var matchingSkill = new SkillMetadata
+        var matchingSkill = new ArtifactMetadata
         {
             Name = "api",
             Description = "API",
             Tags = ["alirezanet/lorex"],
         };
-        var unrelatedSkill = new SkillMetadata
+        var unrelatedSkill = new ArtifactMetadata
         {
             Name = "build",
             Description = "Build",
@@ -67,30 +67,30 @@ public sealed class CommandArgumentTests
     }
 
     [Fact]
-    public void RegistrySkillQueryService_NormalizeProjectTag_LowercasesAndNormalizesSlashes()
+    public void RegistryArtifactQueryService_NormalizeProjectTag_LowercasesAndNormalizesSlashes()
     {
-        var normalized = RegistrySkillQueryService.NormalizeProjectTag("AliRezaNet\\Lorex");
+        var normalized = RegistryArtifactQueryService.NormalizeProjectTag("AliRezaNet\\Lorex");
 
         Assert.Equal("alirezanet/lorex", normalized);
     }
 
     [Fact]
-    public void UninstallCommand_ParseSkillNames_FiltersAllFlagAndDeduplicates()
+    public void UninstallCommand_ParseArtifactNames_FiltersAllFlagAndDeduplicates()
     {
-        var parsed = UninstallCommand.ParseSkillNames(["auth", "--all", "Auth", "api"]);
+        var parsed = UninstallCommand.ParseArtifactNames(["auth", "--all", "Auth", "api"]);
 
         Assert.Equal(["auth", "api"], parsed);
     }
 
     [Fact]
-    public void UninstallCommand_GetInstalledSkillNames_ReturnsSortedSkillNames()
+    public void UninstallCommand_GetInstalledArtifactNames_ReturnsSortedArtifactNames()
     {
         var config = new LorexConfig
         {
-            InstalledSkills = ["zeta", "alpha", "beta"],
+            Artifacts = new ArtifactCollection { Skills = ["zeta", "alpha", "beta"] },
         };
 
-        var installed = UninstallCommand.GetInstalledSkillNames(config);
+        var installed = UninstallCommand.GetInstalledArtifactNames(config, ArtifactKind.Skill);
 
         Assert.Equal(["alpha", "beta", "zeta"], installed);
     }
@@ -112,11 +112,31 @@ public sealed class CommandArgumentTests
     }
 
     [Fact]
-    public void SkillService_SanitizeBranchSegment_NormalizesUnsafeCharacters()
+    public void ArtifactService_SanitizeBranchSegment_NormalizesUnsafeCharacters()
     {
-        var sanitized = Lorex.Core.Services.SkillService.SanitizeBranchSegment("Auth Logic/Flow!");
+        var sanitized = Lorex.Core.Services.ArtifactService.SanitizeBranchSegment("Auth Logic/Flow!");
 
         Assert.Equal("auth-logic-flow", sanitized);
+    }
+
+    [Fact]
+    public void ArtifactCliSupport_ParseArtifactTypeOrDefault_DefaultsToSkillWithoutConsumingTagFlag()
+    {
+        var parsed = ArtifactCliSupport.ParseArtifactTypeOrDefault(["conventions", "-t", "dotnet,backend"]);
+
+        Assert.False(parsed.HasExplicitType);
+        Assert.Equal(ArtifactKind.Skill, parsed.Kind);
+        Assert.Equal(["conventions", "-t", "dotnet,backend"], parsed.RemainingArgs);
+    }
+
+    [Fact]
+    public void ArtifactCliSupport_ParseArtifactTypeOrDefault_ParsesExplicitPromptType()
+    {
+        var parsed = ArtifactCliSupport.ParseArtifactTypeOrDefault(["--type", "prompt", "review"]);
+
+        Assert.True(parsed.HasExplicitType);
+        Assert.Equal(ArtifactKind.Prompt, parsed.Kind);
+        Assert.Equal(["review"], parsed.RemainingArgs);
     }
 
     [Fact]
@@ -200,11 +220,11 @@ public sealed class CommandArgumentTests
     }
 
     [Fact]
-    public void SkillService_RequiresOverwriteApproval_IsTrueForLocalDirectoryAndFalseForSymlink()
+    public void ArtifactService_RequiresOverwriteApproval_IsTrueForLocalDirectoryAndFalseForSymlink()
     {
         var projectRoot = Path.Combine(Path.GetTempPath(), $"lorex-test-{Guid.NewGuid():N}");
         var sourceRoot = Path.Combine(Path.GetTempPath(), $"lorex-test-source-{Guid.NewGuid():N}");
-        var service = new SkillService(new RegistryService(new GitService()));
+        var service = new ArtifactService(new RegistryService(new GitService()));
 
         try
         {
@@ -221,9 +241,9 @@ public sealed class CommandArgumentTests
             Directory.CreateDirectory(Path.GetDirectoryName(linkedDir)!);
             Directory.CreateSymbolicLink(linkedDir, sourceDir);
 
-            Assert.True(service.RequiresOverwriteApproval(projectRoot, "local"));
-            Assert.False(service.RequiresOverwriteApproval(projectRoot, "linked"));
-            Assert.False(service.RequiresOverwriteApproval(projectRoot, "missing"));
+            Assert.True(service.RequiresOverwriteApproval(projectRoot, ArtifactKind.Skill, "local"));
+            Assert.False(service.RequiresOverwriteApproval(projectRoot, ArtifactKind.Skill, "linked"));
+            Assert.False(service.RequiresOverwriteApproval(projectRoot, ArtifactKind.Skill, "missing"));
         }
         finally
         {
