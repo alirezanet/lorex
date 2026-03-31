@@ -62,34 +62,48 @@ static int PrintVersion()
 
 static int PrintHelp()
 {
-    var grid = new Grid()
-        .AddColumn(new GridColumn().Width(14))
-        .AddColumn(new GridColumn().Width(28))
-        .AddColumn();
-
-    void Row(string cmd, string args, string desc)
-        => grid.AddRow($"  [bold]{cmd}[/]", $"[dim]{args}[/]", desc);
-
-    Row("init",      "[[<url>]] [[--local]] [[--adapters a,b]]", "Configure a registry (or run local-only) and set up this project");
-    Row("install",   "[[<skill>…]] [[--all]] [[--recommended]]",       "Install skills from the registry, or choose interactively");
-    Row("uninstall", "[[<skill>…]] [[--all]]",       "Remove installed skills, or choose interactively");
-    Row("list",      "",                   "List skills available in the registry");
-    Row("status",    "",                   "Show installed skills and their state");
-    Row("sync",      "",                   "Pull latest skill versions from the registry");
-    Row("create",    "[[<name>]] [[-d desc]] [[-t tags]] [[-o owner]]", "Scaffold a new skill for AI/manual authoring");
-    Row("publish",   "[[<skill>…]]",          "Push local skills to the registry");
-    Row("registry",  "",                   "Interactively configure the connected registry policy");
-    Row("refresh",   "[[--target adapter]]", "Re-project lorex skills into native agent locations");
-
     AnsiConsole.WriteLine();
     AnsiConsole.Write(new FigletText("lorex").Color(Color.Blue));
     AnsiConsole.MarkupLine($"[dim]v{GetVersion()} — Teach your AI agents once. Reuse everywhere.[/]");
     AnsiConsole.WriteLine();
-    AnsiConsole.MarkupLine("[bold]USAGE[/]  lorex [dim]<command>[/] [dim][[args]][/]");
+    AnsiConsole.MarkupLine("[bold]USAGE[/]  lorex [dim]<command> [[args]][/]");
     AnsiConsole.WriteLine();
-    AnsiConsole.MarkupLine("[bold]COMMANDS[/]");
-    AnsiConsole.Write(grid);
-    AnsiConsole.WriteLine();
+
+    Grid MakeGrid() => new Grid()
+        .AddColumn(new GridColumn().Width(12))
+        .AddColumn(new GridColumn().Width(36))
+        .AddColumn();
+
+    void Row(Grid g, string cmd, string args, string desc)
+        => g.AddRow($"  [bold deepskyblue3]{cmd}[/]", $"[grey]{args}[/]", $"[dim]{desc}[/]");
+
+    void Section(string title, Action<Grid> rows)
+    {
+        AnsiConsole.Write(new Rule($"[bold]{title}[/]").LeftJustified().RuleStyle("blue dim"));
+        var g = MakeGrid();
+        rows(g);
+        AnsiConsole.Write(g);
+        AnsiConsole.WriteLine();
+    }
+
+    Section("Local", g =>
+    {
+        Row(g, "init",    "[[<url>]] [[--local]] [[--adapters a,b]]",          "Configure a registry (or run local-only) and set up this project");
+        Row(g, "create",  "[[<name>]] [[-d desc]] [[-t tags]] [[-o owner]]",   "Scaffold a new skill for AI/manual authoring");
+        Row(g, "status",  "",                                                   "Show installed skills and their state");
+        Row(g, "refresh", "[[--target adapter]]",                               "Re-project lorex skills into native agent locations");
+    });
+
+    Section("Registry", g =>
+    {
+        Row(g, "install",   "[[<skill>…]] [[--all]] [[--recommended]]",  "Install skills from the registry, or choose interactively");
+        Row(g, "uninstall", "[[<skill>…]] [[--all]]",                    "Remove installed skills, or choose interactively");
+        Row(g, "list",      "",                                          "List skills available in the registry");
+        Row(g, "sync",      "",                                          "Pull latest skill versions from the registry");
+        Row(g, "publish",   "[[<skill>…]]",                             "Push local skills to the registry");
+        Row(g, "registry",  "",                                         "Interactively configure the connected registry policy");
+    });
+
     AnsiConsole.MarkupLine("[dim]Run [bold]lorex <command> --help[/] for command-specific help.[/]");
     AnsiConsole.WriteLine();
     return 0;
