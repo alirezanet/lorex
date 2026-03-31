@@ -7,7 +7,6 @@
 [![CI](https://github.com/alirezanet/lorex/actions/workflows/ci.yml/badge.svg)](https://github.com/alirezanet/lorex/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](#license)
 [![Status](https://img.shields.io/badge/status-early%20beta-orange.svg)](#contributing)
-![Status](https://img.shields.io/badge/status-under%20development-orange)
 
 *Lorex is under active development. Expect rapid changes, rough edges, and frequent improvements.*
 
