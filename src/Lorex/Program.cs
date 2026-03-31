@@ -22,6 +22,7 @@ try
         "uninstall" => UninstallCommand.Run(rest),
         "create" or "generate" => CreateCommand.Run(rest),
         "publish"   => PublishCommand.Run(rest),
+        "registry"  => RegistryCommand.Run(rest),
         "sync"      => SyncCommand.Run(rest),
         "list"      => ListCommand.Run(rest),
         "status"    => StatusCommand.Run(rest),
@@ -72,6 +73,7 @@ static int PrintHelp()
     Row("sync",      "",                   "Pull latest skill versions from the registry");
     Row("create",    "[[<name>]] [[-d desc]] [[-t tags]] [[-o owner]]", "Scaffold a new skill for AI/manual authoring");
     Row("publish",   "[[<skill>…]]",          "Push local skills to the registry");
+    Row("registry",  "",                   "Interactively configure the connected registry policy");
     Row("refresh",   "[[--target adapter]]", "Re-project lorex skills into native agent locations");
 
     AnsiConsole.WriteLine();

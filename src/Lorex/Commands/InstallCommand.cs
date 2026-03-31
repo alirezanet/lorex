@@ -152,7 +152,7 @@ public static class InstallCommand
             .Start("Fetching registry…", ctx =>
             {
                 ctx.Spinner(Spinner.Known.Dots);
-                available = ServiceFactory.Registry.ListAvailableSkills(cfg.Registry!);
+                available = ServiceFactory.Registry.ListAvailableSkills(cfg.Registry!.Url);
             });
 
         return available;

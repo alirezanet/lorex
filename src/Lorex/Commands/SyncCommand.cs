@@ -28,6 +28,7 @@ public static class SyncCommand
                 {
                     ctx.Spinner(Spinner.Known.Dots);
                     updated = ServiceFactory.Skills.SyncSkills(projectRoot);
+                    ServiceFactory.Skills.RefreshRegistryPolicy(projectRoot, refreshRegistry: false);
 
                     if (updated.Count > 0)
                     {

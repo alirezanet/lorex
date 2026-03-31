@@ -75,11 +75,74 @@ public sealed class GitService
     public void CloneShallow(string url, string destination) =>
         Run(Path.GetDirectoryName(destination)!, "clone", "--depth", "1", "--", url, destination);
 
-    public void Pull(string repoPath) =>
-        Run(repoPath, "pull", "--ff-only");
+    public void FetchPrune(string repoPath, string remote) =>
+        Run(repoPath, "fetch", "--prune", remote);
+
+    public void Fetch(string repoPath, string remote, string reference) =>
+        Run(repoPath, "fetch", remote, reference);
+
+    public void FetchBranchToRemoteTracking(string repoPath, string remote, string branchName) =>
+        Run(repoPath, "fetch", remote, $"refs/heads/{branchName}:refs/remotes/{remote}/{branchName}");
+
+    public void UpdateRemoteHead(string repoPath, string remote)
+    {
+        try
+        {
+            Run(repoPath, "remote", "set-head", remote, "-a");
+        }
+        catch (GitException)
+        {
+            // Best-effort only. Some remotes may not advertise HEAD cleanly.
+        }
+    }
+
+    public string? GetRemoteDefaultBranch(string repoPath, string remote)
+    {
+        try
+        {
+            var output = Run(repoPath, "symbolic-ref", "--short", $"refs/remotes/{remote}/HEAD").Trim();
+            var prefix = $"{remote}/";
+            return output.StartsWith(prefix, StringComparison.Ordinal)
+                ? output[prefix.Length..]
+                : output;
+        }
+        catch (GitException)
+        {
+            return GetRemoteDefaultBranchViaSymref(repoPath, remote);
+        }
+    }
+
+    public string? GetRemoteDefaultBranchFromUrl(string remoteUrl)
+    {
+        try
+        {
+            var output = Run(Path.GetTempPath(), "ls-remote", "--symref", "--", remoteUrl, "HEAD");
+            return ParseDefaultBranchFromLsRemote(output);
+        }
+        catch (GitException)
+        {
+            return null;
+        }
+    }
+
+    public IReadOnlyList<string> GetRemoteBranchNames(string repoPath, string remote)
+    {
+        try
+        {
+            var output = Run(repoPath, "for-each-ref", "--format=%(refname:short)", $"refs/remotes/{remote}");
+            return ParseRemoteBranchNames(output, remote);
+        }
+        catch (GitException)
+        {
+            return [];
+        }
+    }
 
     public void AddAll(string repoPath) =>
         Run(repoPath, "add", "-A");
+
+    public bool HasChanges(string repoPath) =>
+        !string.IsNullOrWhiteSpace(Run(repoPath, "status", "--porcelain"));
 
     public void Commit(string repoPath, string message) =>
         Run(repoPath, "commit", "-m", message);
@@ -87,7 +150,86 @@ public sealed class GitService
     public void Push(string repoPath) =>
         Run(repoPath, "push");
 
+    public void PushSetUpstream(string repoPath, string remote, string branchName) =>
+        Run(repoPath, "push", "-u", remote, branchName);
+
+    public void CheckoutResetToRemoteBranch(string repoPath, string remote, string branchName) =>
+        Run(repoPath, "checkout", "-B", branchName, $"{remote}/{branchName}");
+
+    public void CheckoutOrphan(string repoPath, string branchName) =>
+        Run(repoPath, "checkout", "--orphan", branchName);
+
+    public bool HasCommits(string repoPath)
+    {
+        try
+        {
+            Run(repoPath, "rev-parse", "--verify", "HEAD");
+            return true;
+        }
+        catch (GitException)
+        {
+            return false;
+        }
+    }
+
+    public void WorktreeAdd(string repoPath, string worktreePath, string branchName, string startPoint)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(worktreePath)!);
+        Run(repoPath, "worktree", "add", "-B", branchName, worktreePath, startPoint);
+    }
+
+    public void WorktreeRemove(string repoPath, string worktreePath) =>
+        Run(repoPath, "worktree", "remove", "--force", worktreePath);
+
     // ── helpers ──────────────────────────────────────────────────────────────
+
+    private string? GetRemoteDefaultBranchViaSymref(string repoPath, string remote)
+    {
+        try
+        {
+            var output = Run(repoPath, "ls-remote", "--symref", remote, "HEAD");
+            return ParseDefaultBranchFromLsRemote(output);
+        }
+        catch (GitException)
+        {
+            return null;
+        }
+    }
+
+    internal static string? ParseDefaultBranchFromLsRemote(string output)
+    {
+        using var reader = new StringReader(output);
+        string? line;
+        while ((line = reader.ReadLine()) is not null)
+        {
+            const string prefix = "ref: refs/heads/";
+            if (!line.StartsWith(prefix, StringComparison.Ordinal))
+                continue;
+
+            var tabIndex = line.IndexOf('\t');
+            if (tabIndex <= prefix.Length)
+                continue;
+
+            var branchName = line[prefix.Length..tabIndex];
+            if (!string.IsNullOrWhiteSpace(branchName))
+                return branchName;
+        }
+
+        return null;
+    }
+
+    internal static IReadOnlyList<string> ParseRemoteBranchNames(string output, string remote)
+    {
+        var prefix = $"{remote}/";
+        return [.. output
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Trim())
+            .Where(line => line.StartsWith(prefix, StringComparison.Ordinal) && !line.EndsWith("/HEAD", StringComparison.Ordinal))
+            .Select(line => line[prefix.Length..])
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(line => line, StringComparer.Ordinal)];
+    }
 
     private static bool IsPlausibleGitUrl(string url)
     {

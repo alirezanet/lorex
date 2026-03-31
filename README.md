@@ -82,6 +82,10 @@ lorex install auth-logic
 
 *Update the skill in the registry once; `lorex sync` updates it for every developer and every repo in the company.*
 
+*For team registries, Lorex can store a registry policy in `.lorex-registry.json` so contributors sync and install from the shared registry normally, while `lorex publish` uses a pull-request workflow instead of pushing directly.*
+
+*When that policy needs to change, run `lorex registry`. Lorex updates the manifest directly for direct-write registries, or prepares a review branch when the registry itself is governed by a pull-request workflow.*
+
 -----
 
 ## 🧠 The "Magic": How it Works

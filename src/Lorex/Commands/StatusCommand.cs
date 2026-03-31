@@ -17,7 +17,22 @@ public static class StatusCommand
 
             AnsiConsole.WriteLine();
             AnsiConsole.MarkupLine("[bold]Project:[/] [dim]{0}[/]", Markup.Escape(projectRoot));
-            AnsiConsole.MarkupLine("[bold]Registry:[/] [dim]{0}[/]", config.Registry is null ? "(none — local-only mode)" : Markup.Escape(config.Registry));
+            AnsiConsole.MarkupLine("[bold]Registry:[/] [dim]{0}[/]", config.Registry is null ? "(none — local-only mode)" : Markup.Escape(config.Registry.Url));
+            if (config.Registry is not null)
+            {
+                var policy = config.Registry.Policy;
+                if (string.Equals(policy.PublishMode, Lorex.Core.Models.RegistryPublishModes.PullRequest, StringComparison.OrdinalIgnoreCase))
+                {
+                    AnsiConsole.MarkupLine(
+                        "[bold]Publish mode:[/] [dim]{0}[/] [dim](base branch: {1})[/]",
+                        Markup.Escape(policy.PublishMode),
+                        Markup.Escape(policy.BaseBranch));
+                }
+                else
+                {
+                    AnsiConsole.MarkupLine("[bold]Publish mode:[/] [dim]{0}[/]", Markup.Escape(policy.PublishMode));
+                }
+            }
             AnsiConsole.MarkupLine("[bold]Adapters:[/] [dim]{0}[/]",
                 config.Adapters.Length > 0 ? string.Join(", ", config.Adapters) : "none");
             AnsiConsole.WriteLine();

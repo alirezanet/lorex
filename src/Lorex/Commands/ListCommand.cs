@@ -27,7 +27,7 @@ public static class ListCommand
                 .Start("Fetching registry…", ctx =>
                 {
                     ctx.Spinner(Spinner.Known.Dots);
-                    available = ServiceFactory.Registry.ListAvailableSkills(config.Registry);
+                    available = ServiceFactory.Registry.ListAvailableSkills(config.Registry.Url);
                 });
 
             if (available.Count == 0)
@@ -61,7 +61,7 @@ public static class ListCommand
             }
 
             AnsiConsole.WriteLine();
-            AnsiConsole.MarkupLine("[dim]Registry:[/] [bold]{0}[/]", Markup.Escape(config.Registry));
+            AnsiConsole.MarkupLine("[dim]Registry:[/] [bold]{0}[/]", Markup.Escape(config.Registry.Url));
             AnsiConsole.Write(table);
             AnsiConsole.MarkupLine("[dim]Run [bold]lorex install[/] to choose skills interactively, or [bold]lorex install <skill>[/] to install one directly.[/]");
             return 0;

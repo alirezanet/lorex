@@ -67,6 +67,84 @@ public sealed class CommandArgumentTests
     {
         var defaults = InitCommand.GetDefaultAdapters([]);
 
-        Assert.Equal(["copilot", "codex", "claude"], defaults);
+        Assert.Equal(["copilot", "codex"], defaults);
+    }
+
+    [Fact]
+    public void SkillService_SanitizeBranchSegment_NormalizesUnsafeCharacters()
+    {
+        var sanitized = Lorex.Core.Services.SkillService.SanitizeBranchSegment("Auth Logic/Flow!");
+
+        Assert.Equal("auth-logic-flow", sanitized);
+    }
+
+    [Fact]
+    public void RegistryPublishModes_IsValid_RecognizesSupportedModes()
+    {
+        Assert.True(RegistryPublishModes.IsValid(RegistryPublishModes.Direct));
+        Assert.True(RegistryPublishModes.IsValid(RegistryPublishModes.PullRequest));
+        Assert.True(RegistryPublishModes.IsValid(RegistryPublishModes.ReadOnly));
+        Assert.False(RegistryPublishModes.IsValid("custom"));
+    }
+
+    [Fact]
+    public void RegistryPolicyPrompts_OrderedChoices_PutsCurrentModeFirst()
+    {
+        var choices = RegistryPolicyPrompts.OrderedChoices(RegistryPublishModes.ReadOnly);
+
+        Assert.Equal(RegistryPolicyPrompts.ReadOnlyChoice, choices[0]);
+        Assert.Equal(3, choices.Count);
+    }
+
+    [Fact]
+    public void RegistryPolicyPrompts_BuildPolicy_UsesProvidedPullRequestPrefix()
+    {
+        var policy = RegistryPolicyPrompts.BuildPolicy(
+            RegistryPolicyPrompts.PullRequestChoice,
+            "main",
+            "review/");
+
+        Assert.Equal(RegistryPublishModes.PullRequest, policy.PublishMode);
+        Assert.Equal("main", policy.BaseBranch);
+        Assert.Equal("review/", policy.PrBranchPrefix);
+    }
+
+    [Fact]
+    public void RegistryService_BuildPullRequestUrl_HandlesGitHubRemotes()
+    {
+        var service = new Lorex.Core.Services.RegistryService(new Lorex.Core.Services.GitService());
+
+        var httpsUrl = service.BuildPullRequestUrl("https://github.com/acme/skills.git", "lorex/auth-logic", "main");
+        var sshUrl = service.BuildPullRequestUrl("git@github.com:acme/skills.git", "lorex/auth-logic", "main");
+
+        Assert.Equal("https://github.com/acme/skills/compare/main...lorex/auth-logic?expand=1", httpsUrl);
+        Assert.Equal("https://github.com/acme/skills/compare/main...lorex/auth-logic?expand=1", sshUrl);
+    }
+
+    [Fact]
+    public void GitService_ParseDefaultBranchFromLsRemote_ReadsHeadSymref()
+    {
+        const string output = """
+            ref: refs/heads/main	HEAD
+            0123456789abcdef0123456789abcdef01234567	HEAD
+            """;
+
+        var branch = Lorex.Core.Services.GitService.ParseDefaultBranchFromLsRemote(output);
+
+        Assert.Equal("main", branch);
+    }
+
+    [Fact]
+    public void GitService_ParseRemoteBranchNames_ExtractsRemoteBranches()
+    {
+        const string output = """
+            origin/HEAD
+            origin/main
+            origin/dev
+            """;
+
+        var branches = Lorex.Core.Services.GitService.ParseRemoteBranchNames(output, "origin");
+
+        Assert.Equal(["dev", "main"], branches);
     }
 }

@@ -62,6 +62,28 @@ public sealed class SkillService(RegistryService registry)
         File.WriteAllText(GlobalConfigPath, JsonSerializer.Serialize(config, LorexJsonContext.Default.GlobalConfig));
     }
 
+    public LorexConfig RefreshRegistryPolicy(string projectRoot, bool refreshRegistry = true)
+    {
+        var config = ReadConfig(projectRoot);
+        if (config.Registry is null)
+            return config;
+
+        var policy = registry.ReadRegistryPolicy(config.Registry.Url, refreshRegistry)
+            ?? throw new InvalidOperationException(
+                $"Registry '{config.Registry.Url}' is missing {RegistryService.RegistryManifestFileName}.");
+
+        if (config.Registry.Policy == policy)
+            return config;
+
+        var updated = config with
+        {
+            Registry = config.Registry with { Policy = policy }
+        };
+
+        WriteConfig(projectRoot, updated);
+        return updated;
+    }
+
     // ── Uninstall ─────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -94,8 +116,8 @@ public sealed class SkillService(RegistryService registry)
         var config = ReadConfig(projectRoot);
         if (config.Registry is null)
             throw new InvalidOperationException("No registry configured. Run `lorex init <url>` to connect a registry.");
-        var sourcePath = registry.FindSkillPath(config.Registry, skillName)
-            ?? throw new InvalidOperationException($"Skill '{skillName}' not found in registry '{config.Registry}'.");
+        var sourcePath = registry.FindSkillPath(config.Registry.Url, skillName)
+            ?? throw new InvalidOperationException($"Skill '{skillName}' not found in registry '{config.Registry.Url}'.");
 
         var linkPath = SkillDir(projectRoot, skillName);
         Directory.CreateDirectory(Path.Combine(projectRoot, LorexDir, "skills"));
@@ -132,7 +154,7 @@ public sealed class SkillService(RegistryService registry)
 
         // Pull the registry cache — symlinks automatically point to the fresh content
         if (config.Registry is null) return [];
-        registry.EnsureCache(config.Registry);
+        registry.EnsureCache(config.Registry.Url);
 
         var updated = new List<string>();
 
@@ -156,7 +178,7 @@ public sealed class SkillService(RegistryService registry)
                 continue;
             }
 
-            var sourcePath = registry.FindSkillPath(config.Registry, skillName);
+            var sourcePath = registry.FindSkillPath(config.Registry.Url, skillName);
             if (sourcePath is null) continue;
 
             if (Directory.Exists(linkPath))
@@ -175,7 +197,7 @@ public sealed class SkillService(RegistryService registry)
     /// Publishes a local skill from .lorex/skills/&lt;name&gt; to the registry, then converts the real
     /// directory into a symlink pointing at the registry cache.
     /// </summary>
-    public void PublishSkill(string projectRoot, string skillName, GitService git)
+    public PublishResult PublishSkill(string projectRoot, string skillName, GitService git)
     {
         var config = ReadConfig(projectRoot);
         if (config.Registry is null)
@@ -187,24 +209,18 @@ public sealed class SkillService(RegistryService registry)
             throw new InvalidOperationException(
                 $"Skill '{skillName}' not found locally or is already a registry-linked skill.");
 
-        var cacheDir = registry.GetCachePath(config.Registry);
-        if (!Directory.Exists(Path.Combine(cacheDir, ".git")))
-            throw new InvalidOperationException(
-                "Registry is not cached locally. Run `lorex sync` first.");
-
-        // Pull latest before publishing to reduce merge conflicts
-        git.Pull(cacheDir);
-
-        var destination = Path.Combine(cacheDir, "skills", skillName);
-        CopySkillFolder(localPath, destination);
-
-        git.AddAll(cacheDir);
-        git.Commit(cacheDir, $"feat: publish skill '{skillName}'");
-        git.Push(cacheDir);
-
-        // Replace the local copy with a symlink to the registry cache
-        Directory.Delete(localPath, recursive: true);
-        InstallSkill(projectRoot, skillName);
+        return config.Registry.Policy.PublishMode switch
+        {
+            var mode when string.Equals(mode, RegistryPublishModes.Direct, StringComparison.OrdinalIgnoreCase)
+                => PublishSkillDirect(projectRoot, skillName, localPath, config.Registry, git),
+            var mode when string.Equals(mode, RegistryPublishModes.PullRequest, StringComparison.OrdinalIgnoreCase)
+                => PublishSkillViaPullRequest(skillName, localPath, config.Registry, git),
+            var mode when string.Equals(mode, RegistryPublishModes.ReadOnly, StringComparison.OrdinalIgnoreCase)
+                => throw new InvalidOperationException(
+                    $"Registry '{config.Registry.Url}' is read-only. Publishing is disabled by {RegistryService.RegistryManifestFileName}."),
+            _ => throw new InvalidOperationException(
+                $"Registry '{config.Registry.Url}' has unsupported publish mode '{config.Registry.Policy.PublishMode}'.")
+        };
     }
 
     // ── Scaffold ──────────────────────────────────────────────────────────────
@@ -241,6 +257,22 @@ public sealed class SkillService(RegistryService registry)
     public string SkillDir(string projectRoot, string skillName) =>
         Path.Combine(projectRoot, LorexDir, "skills", skillName);
 
+    internal static string BuildPublishBranchName(RegistryPolicy policy, string skillName) =>
+        $"{policy.PrBranchPrefix}{SanitizeBranchSegment(skillName)}-{DateTime.UtcNow:yyyyMMddHHmmss}";
+
+    internal static string SanitizeBranchSegment(string value)
+    {
+        var chars = value
+            .Select(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_' ? char.ToLowerInvariant(ch) : '-')
+            .ToArray();
+
+        var collapsed = new string(chars);
+        while (collapsed.Contains("--", StringComparison.Ordinal))
+            collapsed = collapsed.Replace("--", "-", StringComparison.Ordinal);
+
+        return collapsed.Trim('-');
+    }
+
     /// <summary>
     /// Returns all skill directory names currently present under <c>.lorex/skills</c>.
     /// </summary>
@@ -270,6 +302,90 @@ public sealed class SkillService(RegistryService registry)
             if (new DirectoryInfo(dir).LinkTarget is null && !builtIns.Contains(name))
                 yield return name;
         }
+    }
+
+    private PublishResult PublishSkillDirect(string projectRoot, string skillName, string localPath, RegistryConfig registryConfig, GitService git)
+    {
+        var cacheDir = registry.GetCachePath(registryConfig.Url);
+        if (!Directory.Exists(Path.Combine(cacheDir, ".git")))
+            throw new InvalidOperationException(
+                "Registry is not cached locally. Run `lorex sync` first.");
+
+        // Pull latest before publishing to reduce merge conflicts
+        registry.EnsureCache(registryConfig.Url);
+
+        var destination = Path.Combine(cacheDir, "skills", skillName);
+        CopySkillFolder(localPath, destination);
+
+        git.AddAll(cacheDir);
+        git.Commit(cacheDir, $"feat: publish skill '{skillName}'");
+        git.Push(cacheDir);
+
+        // Replace the local copy with a symlink to the registry cache
+        Directory.Delete(localPath, recursive: true);
+        InstallSkill(projectRoot, skillName);
+
+        return new PublishResult
+        {
+            SkillName = skillName,
+            PublishMode = RegistryPublishModes.Direct,
+        };
+    }
+
+    private PublishResult PublishSkillViaPullRequest(string skillName, string localPath, RegistryConfig registryConfig, GitService git)
+    {
+        var cacheDir = registry.EnsureCache(registryConfig.Url);
+        var policy = registryConfig.Policy;
+        try
+        {
+            git.FetchBranchToRemoteTracking(cacheDir, "origin", policy.BaseBranch);
+        }
+        catch (GitException ex)
+        {
+            throw new InvalidOperationException(
+                $"Base branch '{policy.BaseBranch}' was not found in registry '{registryConfig.Url}'. " +
+                $"Update {RegistryService.RegistryManifestFileName} or create the branch first. Details: {ex.Message}");
+        }
+
+        git.CheckoutResetToRemoteBranch(cacheDir, "origin", policy.BaseBranch);
+
+        var branchName = BuildPublishBranchName(policy, skillName);
+        var worktreeDir = Path.Combine(registry.GetWorktreeRoot(registryConfig.Url), branchName.Replace('/', Path.DirectorySeparatorChar));
+
+        try
+        {
+            git.WorktreeAdd(cacheDir, worktreeDir, branchName, policy.BaseBranch);
+            var destination = Path.Combine(worktreeDir, "skills", skillName);
+            CopySkillFolder(localPath, destination);
+
+            if (!git.HasChanges(worktreeDir))
+                throw new InvalidOperationException($"Skill '{skillName}' has no changes to publish.");
+
+            git.AddAll(worktreeDir);
+            git.Commit(worktreeDir, $"feat: publish skill '{skillName}'");
+            git.PushSetUpstream(worktreeDir, "origin", branchName);
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(worktreeDir))
+                    git.WorktreeRemove(cacheDir, worktreeDir);
+            }
+            catch
+            {
+                // Best-effort cleanup only; the pushed branch remains on the remote either way.
+            }
+        }
+
+        return new PublishResult
+        {
+            SkillName = skillName,
+            PublishMode = RegistryPublishModes.PullRequest,
+            BranchName = branchName,
+            BaseBranch = policy.BaseBranch,
+            PullRequestUrl = registry.BuildPullRequestUrl(registryConfig.Url, branchName, policy.BaseBranch),
+        };
     }
 
     private static string ConfigPath(string projectRoot) =>

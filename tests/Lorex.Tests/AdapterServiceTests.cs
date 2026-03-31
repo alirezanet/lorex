@@ -8,7 +8,11 @@ public sealed class AdapterServiceTests
 {
     private static LorexConfig MakeConfig(params string[] skills) => new()
     {
-        Registry = "https://github.com/test/registry",
+        Registry = new RegistryConfig
+        {
+            Url = "https://github.com/test/registry",
+            Policy = new RegistryPolicy(),
+        },
         Adapters = ["codex"],
         InstalledSkills = skills,
     };

@@ -6,8 +6,8 @@ namespace Lorex.Core.Models;
 /// </summary>
 public sealed record LorexConfig
 {
-    /// <summary>Git URL of the skill registry this project is connected to. Null when running registry-free (local-only mode).</summary>
-    public string? Registry { get; init; }
+    /// <summary>Shared registry configuration for this project. Null when running registry-free (local-only mode).</summary>
+    public RegistryConfig? Registry { get; init; }
 
     /// <summary>Adapter names whose native integration surfaces lorex maintains (for example <c>copilot</c>, <c>codex</c>).</summary>
     public string[] Adapters { get; init; } = [];

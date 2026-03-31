@@ -14,7 +14,14 @@ public static class PublishCommand
 
         try
         {
-            var cfg = ServiceFactory.Skills.ReadConfig(projectRoot);
+            Lorex.Core.Models.LorexConfig cfg = null!;
+            AnsiConsole.Status()
+                .Start("Refreshing registry policy...", ctx =>
+                {
+                    ctx.Spinner(Spinner.Known.Dots);
+                    cfg = ServiceFactory.Skills.RefreshRegistryPolicy(projectRoot);
+                });
+
             if (cfg.Registry is null)
             {
                 AnsiConsole.MarkupLine("[red]No registry configured.[/] lorex is running in local-only mode.");
@@ -74,14 +81,29 @@ public static class PublishCommand
         {
             try
             {
+                Core.Models.PublishResult result = null!;
                 AnsiConsole.Status()
                     .Start($"Publishing [bold]{skillName}[/]...", ctx =>
                     {
                         ctx.Spinner(Spinner.Known.Dots);
-                        ServiceFactory.Skills.PublishSkill(projectRoot, skillName, ServiceFactory.Git);
+                        result = ServiceFactory.Skills.PublishSkill(projectRoot, skillName, ServiceFactory.Git);
                     });
 
-                AnsiConsole.MarkupLine("[green]✓[/] Published [bold]{0}[/]", skillName);
+                if (string.Equals(result.PublishMode, Core.Models.RegistryPublishModes.Direct, StringComparison.OrdinalIgnoreCase))
+                {
+                    AnsiConsole.MarkupLine("[green]✓[/] Published [bold]{0}[/] directly to the registry.", skillName);
+                }
+                else
+                {
+                    AnsiConsole.MarkupLine(
+                        "[green]✓[/] Prepared [bold]{0}[/] for review on branch [bold]{1}[/] targeting [bold]{2}[/].",
+                        skillName,
+                        Markup.Escape(result.BranchName ?? string.Empty),
+                        Markup.Escape(result.BaseBranch ?? string.Empty));
+
+                    if (!string.IsNullOrWhiteSpace(result.PullRequestUrl))
+                        AnsiConsole.MarkupLine("[dim]Open a PR:[/] {0}", Markup.Escape(result.PullRequestUrl));
+                }
             }
             catch (Exception ex)
             {

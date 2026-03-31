@@ -44,6 +44,7 @@ public static class InitCommand
 
         // ── Registry URL ──────────────────────────────────────────────────────
         string? registryUrl;
+        RegistryPolicy? registryPolicy = null;
 
         if (localOnly)
         {
@@ -64,10 +65,20 @@ public static class InitCommand
                 AnsiConsole.MarkupLine("[red]Cannot reach registry:[/] {0}", Markup.Escape(probeError));
                 return 1;
             }
+
+            AnsiConsole.Status().Start("Loading registry policy...", ctx =>
+            {
+                ctx.Spinner(Spinner.Known.Dots);
+                registryPolicy = ServiceFactory.Registry.ReadRegistryPolicy(registryUrl)
+                    ?? throw new InvalidOperationException(
+                        $"Registry '{registryUrl}' is missing {RegistryService.RegistryManifestFileName}. Run `lorex init` interactively to initialize it.");
+            });
         }
         else
         {
             registryUrl = PromptForRegistryInteractive();
+            if (registryUrl is not null)
+                registryPolicy = ResolveRegistryPolicyInteractive(registryUrl);
         }
 
         // ── Adapter selection ─────────────────────────────────────────────────
@@ -104,7 +115,13 @@ public static class InitCommand
         // ── Write lorex.json ──────────────────────────────────────────────────
         var config = new LorexConfig
         {
-            Registry = registryUrl,
+            Registry = registryUrl is null
+                ? null
+                : new RegistryConfig
+                {
+                    Url = registryUrl,
+                    Policy = registryPolicy ?? throw new InvalidOperationException("Registry policy is missing."),
+                },
             Adapters = [.. selectedAdapters],
             InstalledSkills = [],
         };
@@ -158,7 +175,7 @@ public static class InitCommand
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        return detected.Count > 0 ? detected : ["copilot", "codex", "claude"];
+        return detected.Count > 0 ? detected : ["copilot", "codex"];
     }
 
     private static string? PromptForRegistryInteractive()
@@ -216,6 +233,56 @@ public static class InitCommand
         return AnsiConsole.Prompt(
             new TextPrompt<string>("[bold]Registry URL[/] [dim](git repo — SSH or HTTPS; press Enter for local-only):[/]")
                 .AllowEmpty());
+    }
+
+    private static RegistryPolicy ResolveRegistryPolicyInteractive(string registryUrl)
+    {
+        RegistryPolicy? existingPolicy = null;
+        AnsiConsole.Status().Start("Loading registry policy...", ctx =>
+        {
+            ctx.Spinner(Spinner.Known.Dots);
+            existingPolicy = ServiceFactory.Registry.ReadRegistryPolicy(registryUrl);
+        });
+
+        if (existingPolicy is not null)
+            return existingPolicy;
+
+        AnsiConsole.MarkupLine(
+            "[yellow]This registry does not define a lorex policy yet.[/] Lorex can initialize [bold]{0}[/] in the registry root now.",
+            RegistryService.RegistryManifestFileName);
+
+        var publishMode = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("[bold]How should contributors publish skills to this registry?[/]")
+                .UseConverter(RegistryPolicyPrompts.RenderChoice)
+                .AddChoices(RegistryPolicyPrompts.OrderedChoices(RegistryPublishModes.PullRequest)));
+
+        var baseBranch = AnsiConsole.Prompt(
+            new TextPrompt<string>("[bold]Initial branch name for this registry[/]")
+                .DefaultValue("main")
+                .AllowEmpty());
+
+        if (string.IsNullOrWhiteSpace(baseBranch))
+            baseBranch = "main";
+
+        var policy = RegistryPolicyPrompts.BuildPolicy(
+            publishMode,
+            baseBranch,
+            new RegistryPolicy().PrBranchPrefix);
+
+        AnsiConsole.Status()
+            .Start("Initializing registry policy...", ctx =>
+            {
+                ctx.Spinner(Spinner.Known.Dots);
+                policy = ServiceFactory.Registry.InitializeRegistryPolicy(registryUrl, policy);
+            });
+
+        AnsiConsole.MarkupLine(
+            "[green]✓[/] Initialized registry policy in [bold]{0}[/] with publish mode [bold]{1}[/].",
+            RegistryService.RegistryManifestFileName,
+            Markup.Escape(policy.PublishMode));
+
+        return policy;
     }
 
     private static List<string> PromptForAdaptersInteractive(
