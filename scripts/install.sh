@@ -3,7 +3,7 @@
 set -eu
 
 OWNER="alirezanet"
-REPO="lorex"
+REPO="Lorex"
 VERSION="${1:-}"
 INSTALL_DIR="${HOME}/.local/bin"
 BINARY_NAME="lorex"
@@ -27,13 +27,14 @@ get_tag() {
   fi
 
   need_cmd curl
-  if command -v python3 >/dev/null 2>&1; then
-    curl -fsSL -H "User-Agent: lorex-installer" "https://api.github.com/repos/${OWNER}/${REPO}/releases/latest" \
-      | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])'
-    return
+  latest_url="$(curl -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/${OWNER}/${REPO}/releases/latest")"
+  tag="${latest_url##*/}"
+
+  if [ -z "$tag" ] || [ "$tag" = "latest" ]; then
+    fail "Could not determine the latest Lorex release tag automatically. Pass a version like ./install.sh 0.0.1 instead."
   fi
 
-  fail "python3 is required to resolve the latest release tag automatically. Pass a version like ./install.sh 0.0.1 instead."
+  printf '%s' "$tag"
 }
 
 get_asset_name() {
