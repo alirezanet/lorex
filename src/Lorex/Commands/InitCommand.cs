@@ -196,7 +196,7 @@ public static class InitCommand
                 AnsiConsole.MarkupLine("  [dim]•[/] {0}", s);
         }
         if (registryUrl is null)
-            AnsiConsole.MarkupLine("[dim]Running in local-only mode. Run [bold]lorex generate[/] to create your first skill.[/]");
+            AnsiConsole.MarkupLine("[dim]Running in local-only mode. Ask your AI agent to create a skill for this project, or run [bold]lorex create[/] to scaffold one.[/]");
         else
             AnsiConsole.MarkupLine("[dim]Run [/][bold]lorex install <skill>[/][dim] to add your first skill.[/]");
         return 0;

@@ -2,13 +2,14 @@ using Spectre.Console;
 
 namespace Lorex.Commands;
 
-/// <summary>Implements <c>lorex generate</c>: scaffolds a new skill into <c>.lorex/skills/</c> for local authoring.</summary>
-public static class GenerateCommand
+/// <summary>Implements <c>lorex create</c>: scaffolds a new skill into <c>.lorex/skills/</c> for local authoring.</summary>
+public static class CreateCommand
 {
     /// <summary>Runs the command. Returns 0 on success, 1 on failure.</summary>
     /// <remarks>
-    /// Non-interactive: <c>lorex generate &lt;name&gt; [--description "…"] [--tags a,b] [--owner "…"]</c><br/>
-    /// Interactive:     <c>lorex generate</c>
+    /// Non-interactive: <c>lorex create &lt;name&gt; [--description "…"] [--tags a,b] [--owner "…"]</c><br/>
+    /// Interactive:     <c>lorex create</c>
+    /// Legacy alias:    <c>lorex generate</c>
     /// </remarks>
     public static int Run(string[] args)
     {
@@ -29,7 +30,8 @@ public static class GenerateCommand
             }
         }
 
-        AnsiConsole.MarkupLine("[bold]Generate a new skill[/]");        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[bold]Create a new skill[/]");
+        AnsiConsole.WriteLine();
 
         string name, description, owner;
         string[] tags;
@@ -73,9 +75,9 @@ public static class GenerateCommand
             AnsiConsole.MarkupLine("[green]✓[/] Skill created at [dim]{0}[/]", skillDir);
             AnsiConsole.WriteLine();
             AnsiConsole.MarkupLine("[bold]Next steps:[/]");
-            AnsiConsole.MarkupLine("  1. Open [bold]{0}/skill.md[/] and author the content", skillDir);
-            AnsiConsole.MarkupLine("  2. The skill is already active locally — run [bold]lorex refresh[/] to update the agent index");
-            AnsiConsole.MarkupLine("  3. When ready to share, run [bold]lorex publish {0}[/] to push to the registry", name);
+            AnsiConsole.MarkupLine("  1. Ask your AI agent to author [bold]{0}/skill.md[/], or edit it yourself", skillDir);
+            AnsiConsole.MarkupLine("  2. The skill is already active locally and included in the lorex index");
+            AnsiConsole.MarkupLine("  3. When ready to share, run [bold]lorex publish {0}[/] to push it to the registry", name);
             AnsiConsole.WriteLine();
             return 0;
         }

@@ -42,7 +42,7 @@ lorex/
 │       │   ├── ListCommand.cs
 │       │   ├── StatusCommand.cs
 │       │   ├── SyncCommand.cs
-│       │   ├── GenerateCommand.cs
+│       │   ├── CreateCommand.cs
 │       │   ├── PublishCommand.cs
 │       │   ├── RefreshCommand.cs
 │       │   └── ServiceFactory.cs          ← singleton service locator
@@ -103,7 +103,7 @@ All known adapters are registered in `AdapterService.KnownAdapters` (a `Dictiona
 
 ### Skill Lifecycle
 1. **Registry skills** — cloned to `~/.lorex/cache/<registry-hash>/skills/<name>/`; installed as a directory symlink at `.lorex/skills/<name>` → cache path.
-2. **Local skills** — scaffolded by `lorex generate` directly into `.lorex/skills/<name>/`; real directory (not a symlink); publishable via `lorex publish`.
+2. **Local skills** — authored directly in `.lorex/skills/<name>/` by the AI/user, or scaffolded by `lorex create`; real directory (not a symlink); publishable via `lorex publish`.
 3. **Built-in skills** — embedded as `EmbeddedResource` in the binary (`Resources/*.md`); extracted to `.lorex/skills/<name>/` on `lorex init`; not publishable.
 
 `SkillService.LocalOnlySkills()` returns skills that are real directories and not built-in — i.e., candidates for `lorex publish`.
@@ -168,8 +168,8 @@ The dev installer (`install.cs`) uninstalls any existing `lorex` global tool, bu
 1. Create `src/Lorex/Commands/<Name>Command.cs` with a static `Run(string[] args)` method.
 2. Add a case to the `switch` in `Program.cs`.
 3. Add a row to the `PrintHelp()` grid in `Program.cs`.
-4. ✏️ Update `src/Lorex/Resources/lorex.md` — All Commands table.
-5. ✏️ Update `.lorex/skills/lorex/skill.md` — All Commands table.
+4. ✏️ Update `src/Lorex/Resources/lorex.md` — All Commands table and AI workflow guidance if relevant.
+5. ✏️ Update `.lorex/skills/lorex/skill.md` — All Commands table and AI workflow guidance if relevant.
 6. ✏️ Update `README.md` — How It Works command list.
 
 ### Changing the skill file format (frontmatter fields, layout conventions)

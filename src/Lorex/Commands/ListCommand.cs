@@ -63,7 +63,7 @@ public static class ListCommand
             AnsiConsole.WriteLine();
             AnsiConsole.MarkupLine("[dim]Registry:[/] [bold]{0}[/]", Markup.Escape(config.Registry));
             AnsiConsole.Write(table);
-            AnsiConsole.MarkupLine("[dim]Run [bold]lorex install <skill>[/] to install a skill.[/]");
+            AnsiConsole.MarkupLine("[dim]Run [bold]lorex install[/] to choose skills interactively, or [bold]lorex install <skill>[/] to install one directly.[/]");
             return 0;
         }
         catch (Exception ex)

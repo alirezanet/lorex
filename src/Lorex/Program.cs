@@ -19,7 +19,7 @@ try
         "init"      => InitCommand.Run(rest),
         "install"   => InstallCommand.Run(rest),
         "uninstall" => UninstallCommand.Run(rest),
-        "generate"  => GenerateCommand.Run(rest),
+        "create" or "generate" => CreateCommand.Run(rest),
         "publish"   => PublishCommand.Run(rest),
         "sync"      => SyncCommand.Run(rest),
         "list"      => ListCommand.Run(rest),
@@ -58,12 +58,12 @@ static int PrintHelp()
         => grid.AddRow($"  [bold]{cmd}[/]", $"[dim]{args}[/]", desc);
 
     Row("init",      "[[<url>]] [[--local]] [[--adapters a,b]]", "Configure a registry (or run local-only) and set up this project");
-    Row("install",   "<skill>",            "Install a skill from the registry");
+    Row("install",   "[[<skill>…]]",       "Install skills from the registry, or choose interactively");
     Row("uninstall", "<skill>",            "Remove an installed skill");
     Row("list",      "",                   "List skills available in the registry");
     Row("status",    "",                   "Show installed skills and their state");
     Row("sync",      "",                   "Pull latest skill versions from the registry");
-    Row("generate",  "[[<name>]] [[-d desc]] [[-t tags]] [[-o owner]]", "Scaffold a new skill for authoring");
+    Row("create",    "[[<name>]] [[-d desc]] [[-t tags]] [[-o owner]]", "Scaffold a new skill for AI/manual authoring");
     Row("publish",   "[[<skill>…]]",          "Push local skills to the registry");
     Row("refresh",   "[[--target adapter]]", "Re-inject the skill index into agent config files");
 

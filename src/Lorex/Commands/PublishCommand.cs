@@ -39,7 +39,7 @@ public static class PublishCommand
                 if (builtIns.Contains(arg))
                 {
                     AnsiConsole.MarkupLine("[yellow]'{0}' is a built-in lorex skill — it cannot be published.[/]", arg);
-                    AnsiConsole.MarkupLine("[dim]Run [bold]lorex generate <new-name>[/] to create a custom version.[/]");
+                    AnsiConsole.MarkupLine("[dim]Run [bold]lorex create <new-name>[/] to scaffold a custom version.[/]");
                     return 1;
                 }
                 toPublish.Add(arg);
@@ -52,7 +52,7 @@ public static class PublishCommand
 
             if (local.Length == 0)
             {
-                AnsiConsole.MarkupLine("[red]No local skills to publish.[/] Run [bold]lorex generate[/] to create one.");
+                AnsiConsole.MarkupLine("[red]No local skills to publish.[/] Ask your AI agent to create one, or run [bold]lorex create[/] to scaffold it.");
                 return 1;
             }
 
