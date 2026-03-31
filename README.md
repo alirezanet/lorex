@@ -57,7 +57,7 @@ This detects your AI tools and installs the built-in `lorex` skill so your agent
 
 You don't need to write documentation manually. Because Lorex installs its own definition during `init`, you can simply tell your AI to document the project for you.
 
-**The Prompt:**
+**e.g Prompt:**
 
 > "Create a lorex skill called `auth-logic`. Analyze our OAuth implementation and capture the core constraints, pitfalls, and flow so we don't forget them."
 
@@ -86,28 +86,44 @@ lorex install auth-logic
 
 ## 🧠 The "Magic": How it Works
 
-Lorex enhances the files your agents already read. It manages an **injected index block** in your config files (like `.cursorrules` or `CLAUDE.md`):
+Lorex keeps **one canonical source of truth** for your knowledge:
 
-```md
-## Lorex Skill Index
-Read these files to understand the project context:
-- **auth-logic**: OAuth2 implementation and token pitfalls -> `.lorex/skills/auth-logic/skill.md`
-- **api-conventions**: Standard JSON response shapes -> `.lorex/skills/api-conventions/skill.md`
+```text
+.lorex/skills/
+  auth-logic/
+    SKILL.md
+  api-conventions/
+    SKILL.md
 ```
 
-Because this index is updated automatically by Lorex, your AI agent always knows exactly where to look for the most current project "Lore."
+That folder is the only place Lorex expects you to author or review skill content. Everything else is a derived projection.
 
------
+When you run `lorex refresh`, Lorex projects those skills into each agent's **native integration surface**.
 
-## 🔌 Supported AI Tools (Adapters)
+For agents with native skill folders, Lorex creates **directory symlinks** back to `.lorex/skills`:
 
-| Tool | File Managed |
-| :--- | :--- |
-| **Cursor** | `.cursorrules` |
-| **Claude / Windsurf** | `CLAUDE.md` / `.windsurfrules` |
-| **Copilot** | `.github/copilot-instructions.md` |
-| **Cline / Roo / Gemini** | `.clinerules` / `.roorules` / `GEMINI.md` |
-| **Codex / OpenClaw** | `AGENTS.md` |
+```text
+.claude/skills/auth-logic        -> .lorex/skills/auth-logic
+.agents/skills/auth-logic        -> .lorex/skills/auth-logic
+.github/skills/auth-logic        -> .lorex/skills/auth-logic
+.cline/skills/auth-logic         -> .lorex/skills/auth-logic
+.windsurf/skills/auth-logic      -> .lorex/skills/auth-logic
+.opencode/skills/auth-logic      -> .lorex/skills/auth-logic
+```
+
+For agents that use rules or settings instead of skill folders, Lorex generates the right native files from the same source skill:
+
+- Cursor → `.cursor/rules/`
+- Roo → `.roo/rules-code/`
+- Gemini → `.gemini/settings.json`
+
+So the flow is:
+
+1.  Write or install a skill once in `.lorex/skills/`
+2.  Run `lorex refresh`
+3.  Lorex syncs every selected adapter to that same source using the format that agent already understands
+
+Because the projections are derived from the canonical skill store, your agents stay in sync without duplicating the actual knowledge across multiple incompatible formats.
 
 -----
 
