@@ -93,7 +93,7 @@ Your AI creates `.lorex/skills/<projectName>-conventions/SKILL.md`. Run `lorex r
 
 ### 2\. Share Your Wisdom (The Team Registry)
 
-Turn a local skill into a company-wide standard in seconds. Lorex allows you to **publish** local knowledge to a shared Git registry.
+Turn a local skill into a company-wide standard in seconds. Lorex allows you to **publish** local knowledge to a shared Git registry. or you can ask your AI agent to do it since at this point it knows everything about lorex.
 
 ```bash
 # 1. Connect to your team's central library (a private Git repo)
