@@ -55,7 +55,7 @@ curl -fsSL https://raw.githubusercontent.com/alirezanet/lorex/main/scripts/insta
 Install Lorex as a global tool using the .NET 10 SDK:
 
 ```bash
-dotnet tool install -g lorex --prerelease
+dotnet tool install -g lorex
 ```
 
 #### **Manual Download (Fallback)**
