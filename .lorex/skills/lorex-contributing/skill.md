@@ -10,6 +10,8 @@ owner: lorex
 
 Use this skill when contributing to lorex itself.
 
+Full documentation: https://alirezanet.github.io/lorex/
+
 Lorex is a .NET 10 Native AOT CLI that stores canonical skills in `.lorex/skills` and projects them into native agent integrations. The current architecture is centered on:
 
 - a canonical lorex skill store
@@ -165,10 +167,27 @@ If you change any of these areas, update the docs and skills so agents stay accu
 
 | Changed area | Files to update |
 |---|---|
-| User-facing CLI behavior | `README.md`, `src/Lorex/Resources/lorex.md`, `.lorex/skills/lorex/SKILL.md` |
-| Adapter paths or projection model | `README.md`, `src/Lorex/Resources/lorex.md`, `.lorex/skills/lorex/SKILL.md`, this file |
-| Architecture or repo layout | this file |
-| Skill file format | `README.md`, `src/Lorex/Resources/lorex.md`, `.lorex/skills/lorex/SKILL.md` |
+| User-facing CLI behavior | `README.md`, `docs/`, `src/Lorex/Resources/lorex.md`, `.lorex/skills/lorex/SKILL.md` |
+| Adapter paths or projection model | `README.md`, `docs/`, `src/Lorex/Resources/lorex.md`, `.lorex/skills/lorex/SKILL.md`, this file |
+| Architecture or repo layout | `docs/`, this file |
+| Skill file format | `README.md`, `docs/`, `src/Lorex/Resources/lorex.md`, `.lorex/skills/lorex/SKILL.md` |
+
+### docs/ update rules
+
+The `docs/` directory is a VitePress site published at https://alirezanet.github.io/lorex/. It is the primary reference for users. **Never finish a contribution that changes user-facing behavior without updating the relevant docs page.**
+
+| docs/ page | Update when… |
+|---|---|
+| `docs/guide/getting-started.md` | `lorex init` flow, installation steps, or first-run behavior changes |
+| `docs/guide/concepts.md` | The mental model for skills, registries, adapters, or projections changes |
+| `docs/guide/how-it-works.md` | Projection mechanics, canonical store layout, or commit guidance changes |
+| `docs/guide/skills.md` | `lorex create`, `lorex uninstall`, skill lifecycle, or authoring guidance changes |
+| `docs/guide/team-registry.md` | `lorex publish`, `lorex install`, `lorex sync`, registry setup, or onboarding changes |
+| `docs/reference/commands.md` | Any command's flags, behavior, output, or error messages change |
+| `docs/reference/adapters.md` | An adapter is added, removed, or its projection behavior changes |
+| `docs/reference/skill-format.md` | Frontmatter fields or SKILL.md conventions change |
+| `docs/reference/registry-policy.md` | Registry policy modes or `.lorex-registry.json` format changes |
+| `docs/reference/troubleshooting.md` | A new common failure mode is identified |
 
 ## Pitfalls
 
@@ -178,3 +197,4 @@ If you change any of these areas, update the docs and skills so agents stay accu
 - Native skill-folder projections are considered Lorex-managed only when the target entry is a symlink into `.lorex/skills`.
 - Keep `src/Lorex/Resources/lorex.md` and `.lorex/skills/lorex/SKILL.md` identical.
 - If a change would make an agent reading only the skill files wrong, update the skill files in the same patch.
+- Never complete a task that changes user-facing behavior without updating the corresponding `docs/` page in the same commit.

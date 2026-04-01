@@ -10,6 +10,8 @@ owner: lorex
 
 Lorex is a CLI that manages reusable AI skills and projects them into each agent's native integration surface. The canonical source of truth is `.lorex/skills/<name>/SKILL.md`; adapter outputs are derived from that store.
 
+Full documentation: https://alirezanet.github.io/lorex/
+
 > You are an AI agent reading this skill. Use it when the user asks about lorex usage, installed skills, adapter behavior, or how to create and share skills.
 
 ## When a user asks what skills are available

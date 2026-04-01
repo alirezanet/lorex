@@ -1,0 +1,418 @@
+# Command Reference
+
+All commands resolve the project root by walking **up** from the current directory to the nearest ancestor that contains `.lorex/lorex.json`. You never need to `cd` to the repo root before running a lorex command.
+
+---
+
+## `lorex init`
+
+Set up Lorex in a project, configure a registry, and choose which AI agent adapters to maintain.
+
+```bash
+lorex init [<registry-url>] [--local] [--adapters <a,b,...>]
+lorex init                         # guided interactive setup
+```
+
+### Flags
+
+| Flag | Short | Description |
+| :--- | :--- | :--- |
+| `<registry-url>` | — | Git URL of a registry (HTTPS or SSH). Skip to use the interactive picker. |
+| `--local` | — | Set up without a registry. Skills are project-local only. |
+| `--adapters <list>` | `-a` | Comma-separated list of adapters. Skips the adapter prompt. |
+
+### Interactive flow
+
+Running `lorex init` with no arguments opens a three-step wizard:
+
+**Step 1 — Registry**
+
+Lorex shows a menu with any previously used registries, plus:
+- `Enter a new registry URL` — enter a HTTPS or SSH git URL; Lorex verifies it is reachable
+- `Keep this repo local-only` — no registry, project-only skills
+
+If you enter a URL for a registry that has never been set up before, Lorex asks you to choose a **publish policy** and writes `/.lorex-registry.json` to the registry.
+
+**Step 2 — Adapters**
+
+Lorex scans the project and marks agents it already detects as `(detected)`. Use Space to toggle, Enter to confirm.
+
+If nothing is detected, `copilot` and `codex` are pre-selected as defaults.
+
+**Step 3 — Recommended skills (if connected to a registry)**
+
+If the registry has skills whose tags match this project's repo slug or folder name, Lorex offers to install them immediately.
+
+### What `init` writes
+
+- `.lorex/lorex.json` — project config (registry URL, adapters, installed skills)
+- `.lorex/skills/lorex/SKILL.md` — built-in skill bundled inside the binary
+- Adapter projections for every selected adapter
+
+`lorex init` is safe to re-run. It updates the configuration and re-discovers any skills already in `.lorex/skills/`, so skills are never lost.
+
+### Examples
+
+```bash
+# Fully guided
+lorex init
+
+# Connect to a registry, let Lorex detect adapters
+lorex init https://github.com/your-org/ai-skills.git
+
+# Local-only, specific adapters
+lorex init --local --adapters claude,copilot
+
+# CI / scripted use
+lorex init https://github.com/your-org/ai-skills.git -a codex,claude
+```
+
+---
+
+## `lorex create`
+
+Scaffold a new skill in `.lorex/skills/` for local authoring.
+
+```bash
+lorex create [<name>] [--description <text>] [--tags <list>] [--owner <name>]
+lorex create                       # fully interactive
+lorex generate                     # alias for lorex create
+```
+
+### Flags
+
+| Flag | Short | Description |
+| :--- | :--- | :--- |
+| `<name>` | — | Skill name in kebab-case. Spaces are converted to dashes automatically. |
+| `--description <text>` | `-d` | One-sentence description shown to agents. |
+| `--tags <list>` | `-t` | Comma-separated tags used for `--recommended` matching. |
+| `--owner <name>` | `-o` | Team or person responsible for this skill. |
+
+### Behavior
+
+1. Creates `.lorex/skills/<name>/SKILL.md` with a frontmatter template
+2. Adds the skill to `.lorex/lorex.json`
+3. Runs `lorex refresh` — the skill is immediately visible to all configured agents
+
+### After creating
+
+```
+✓ Skill created at .lorex/skills/auth-logic
+
+Next steps:
+  1. Ask your AI agent to author .lorex/skills/auth-logic/SKILL.md, or edit it yourself
+  2. The skill is already active locally and projected into configured agent integrations
+  3. When ready to share, run lorex publish auth-logic to push it to the registry
+```
+
+### Examples
+
+```bash
+# Interactive
+lorex create
+
+# Non-interactive
+lorex create auth-logic -d "Token validation and session rules" -t "auth,security" -o "platform-team"
+```
+
+---
+
+## `lorex install`
+
+Install one or more skills from the registry into this project.
+
+```bash
+lorex install [<skill>...] [--all] [--recommended]
+lorex install                      # interactive picker
+```
+
+### Flags
+
+| Flag | Description |
+| :--- | :--- |
+| `<skill>...` | One or more skill names to install directly. |
+| `--all` | Install every skill in the registry that is not already installed. |
+| `--recommended` | Install only skills recommended for this project (matched by tags). |
+
+`--all` and `--recommended` cannot be used together. Neither can be combined with explicit skill names.
+
+### Interactive mode
+
+Running `lorex install` with no arguments opens a two-step flow:
+
+1. Lorex fetches the registry and asks: **Install recommended / Install all / Choose specific**
+2. If you choose "Choose specific", a multi-select list lets you pick individual skills
+
+### Recommended matching
+
+A skill is considered recommended for your project if any of its `tags` match:
+- Your repo's GitHub slug (`owner/repo`), e.g. `alirezanet/lorex`
+- Your project folder name (normalized to lowercase with slashes)
+
+### Overwrite protection
+
+If installing would replace a skill you already have as a local directory (not a symlink), Lorex asks for explicit confirmation per skill. You can choose to keep your local version.
+
+### After installing
+
+Lorex creates a symlink `.lorex/skills/<name>` → registry cache, updates `lorex.json`, and runs `lorex refresh`. The skill is immediately available to all agents.
+
+### Examples
+
+```bash
+lorex install auth-logic
+lorex install auth-logic api-conventions checkout-flow
+lorex install --recommended
+lorex install --all
+```
+
+---
+
+## `lorex uninstall`
+
+Remove installed skills from this project.
+
+```bash
+lorex uninstall [<skill>...] [--all]
+lorex uninstall                    # interactive picker
+```
+
+### Flags
+
+| Flag | Description |
+| :--- | :--- |
+| `<skill>...` | One or more skill names to remove. |
+| `--all` | Remove every installed skill without prompting. |
+
+Running with no arguments opens a multi-select picker showing all installed skills.
+
+### What it removes
+
+- `.lorex/skills/<name>/` (or the symlink)
+- The skill from `.lorex/lorex.json`
+
+Adapter projections for the removed skill are cleaned up on the next `lorex refresh`.
+
+---
+
+## `lorex list`
+
+Browse all skills available in the connected registry.
+
+```bash
+lorex list
+```
+
+Shows a table with columns: **Skill**, **Description**, **Version**, **Tags**, **Status**.
+
+Status values:
+- `installed` (green) — already in this project
+- `recommended` (blue) — not installed but tags match this project
+- `available` (dim) — available but not recommended
+
+Recommended skills appear at the top of the table.
+
+::: info Registry required
+`lorex list` requires a registry. In local-only mode it prints a message and exits.
+:::
+
+---
+
+## `lorex status`
+
+Show the current state of this project: registry, adapters, and installed skills.
+
+```bash
+lorex status
+```
+
+### Output
+
+```
+Project:      /home/you/my-project
+Registry:     https://github.com/your-org/ai-skills.git
+Publish mode: pull-request (base branch: main)
+Adapters:     claude, copilot, codex
+
+┌──────────┬──────────┬───────────────────────────────────┐
+│ Adapter  │ Target                                        │
+├──────────┼───────────────────────────────────────────────┤
+│ claude   │ /home/you/my-project/.claude/skills           │
+│ copilot  │ /home/you/my-project/.github/skills           │
+│ codex    │ /home/you/my-project/.agents/skills           │
+└──────────┴───────────────────────────────────────────────┘
+
+┌─────────────────┬───────────┬─────────────────────────────────────┐
+│ Skill           │ Link type │ Path                                │
+├─────────────────┼───────────┼─────────────────────────────────────┤
+│ lorex           │ local     │ .lorex/skills/lorex                 │
+│ auth-logic      │ symlink   │ .lorex/skills/auth-logic            │
+│ api-conventions │ symlink   │ .lorex/skills/api-conventions       │
+└─────────────────┴───────────┴─────────────────────────────────────┘
+```
+
+### Link types
+
+| Type | Color | Meaning |
+| :--- | :--- | :--- |
+| `local` | Yellow | A real directory you authored. Not yet published. |
+| `symlink` | Green | Installed from a registry. Points to the local registry cache. |
+| `missing` | Red | Directory does not exist. Run `lorex refresh`. |
+| `broken symlink` | Red | Symlink target is gone. Run `lorex sync` to restore. |
+
+---
+
+## `lorex sync`
+
+Pull the latest skill content from the registry.
+
+```bash
+lorex sync
+```
+
+### What it does
+
+1. Fetches the registry (runs `git pull` on the local cache)
+2. Refreshes the cached registry policy in `lorex.json`
+3. Because installed skills are directory symlinks into the cache, they immediately reflect new content
+4. Runs `lorex refresh` if any skills were updated
+
+### Overwrite protection
+
+If the registry has an updated version of a skill you have edited locally (link type `local`), Lorex asks for confirmation before overwriting it:
+
+```
+Sync will replace local skill auth-logic with the registry version. Continue?
+> Yes
+  No (keep existing local skill)
+```
+
+Skills you decline to overwrite are skipped and reported at the end.
+
+::: info Registry required
+`lorex sync` requires a registry. Run `lorex init <url>` first if you are in local-only mode.
+:::
+
+---
+
+## `lorex publish`
+
+Contribute a locally authored skill to the registry.
+
+```bash
+lorex publish [<skill>...]
+lorex publish                      # interactive multi-select
+```
+
+Only skills with link type `local` (real directories, not symlinks) can be published. Registry-backed symlinks and built-in skills cannot be published.
+
+### Interactive mode
+
+Running `lorex publish` with no arguments opens a multi-select picker showing only local, unpublished skills. You can select one or more.
+
+### Behavior by policy
+
+**`pull-request` policy:**
+
+1. Pulls the latest registry cache
+2. Creates a branch: `lorex/<skill-name>-<timestamp>`
+3. Copies the skill into `skills/<name>/` on that branch
+4. Commits and pushes
+5. Prints the branch name and a pull request URL (GitHub only)
+
+Your local skill directory stays as-is until the PR is merged and you run `lorex sync`.
+
+**`direct` policy:**
+
+1. Pulls the latest registry cache
+2. Commits and pushes the skill to the base branch
+3. Immediately replaces your local directory with a symlink to the registry cache
+
+**`read-only` policy:**
+
+Blocked. The command exits with an error. Contact the registry owner to change the policy.
+
+### Examples
+
+```bash
+lorex publish checkout-flow
+lorex publish checkout-flow auth-logic
+lorex publish                      # pick interactively
+```
+
+::: info Registry required
+`lorex publish` requires a registry.
+:::
+
+---
+
+## `lorex registry`
+
+Interactively update the connected registry's publish policy.
+
+```bash
+lorex registry
+```
+
+Prompts you to choose a new publish mode, base branch, and PR branch prefix.
+
+**If the current policy is `direct`:** the new policy is committed and pushed immediately.
+
+**If the current policy is `pull-request`:** Lorex creates a review branch for the policy change. The existing policy stays in effect until that PR is merged and `lorex sync` is run.
+
+::: info Registry required
+`lorex registry` requires a registry.
+:::
+
+---
+
+## `lorex refresh`
+
+Re-project skills into native agent locations without fetching from the registry.
+
+```bash
+lorex refresh [--target <adapter>]
+```
+
+### Flags
+
+| Flag | Short | Description |
+| :--- | :--- | :--- |
+| `--target <adapter>` | `-t` | Re-project only a single adapter instead of all. |
+
+### When to run it
+
+- After editing a skill file (symlink adapters update automatically, but Cursor/Roo need regenerated rule files)
+- After adding a new adapter to `lorex.json`
+- After cloning a project that has `.lorex/` committed but no projections (e.g. because projections are gitignored)
+- If a projection looks stale or broken
+
+### Examples
+
+```bash
+lorex refresh                      # all adapters
+lorex refresh --target cursor      # cursor only
+lorex refresh -t claude            # claude only
+```
+
+---
+
+## `lorex --version`
+
+Print the installed version and exit.
+
+```bash
+lorex --version
+lorex -v
+```
+
+---
+
+## `lorex --help`
+
+Print command usage and exit.
+
+```bash
+lorex --help
+lorex -h
+```
