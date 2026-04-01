@@ -13,7 +13,4 @@ public interface IAdapter
 
     /// <summary>Returns <see langword="true"/> if lorex should suggest this adapter based on the current workspace.</summary>
     bool DetectExisting(string projectRoot);
-
-    /// <summary>Returns obsolete lorex-managed instruction files that should be cleaned up during migration.</summary>
-    IReadOnlyList<string> LegacyPaths(string projectRoot);
 }

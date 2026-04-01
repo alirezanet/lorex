@@ -11,7 +11,4 @@ public sealed class RooAdapter : IAdapter
     public bool DetectExisting(string projectRoot) =>
         Directory.Exists(Path.Combine(projectRoot, ".roo", "rules-code")) ||
         File.Exists(Path.Combine(projectRoot, ".roorules"));
-
-    public IReadOnlyList<string> LegacyPaths(string projectRoot) =>
-        [Path.Combine(projectRoot, ".roorules")];
 }

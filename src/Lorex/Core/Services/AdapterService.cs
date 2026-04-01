@@ -10,9 +10,6 @@ namespace Lorex.Core.Services;
 /// </summary>
 public sealed class AdapterService
 {
-    private const string LegacyStartMarker = "<!-- lorex:start -->";
-    private const string LegacyEndMarker = "<!-- lorex:end -->";
-
     public static readonly IReadOnlyDictionary<string, IAdapter> KnownAdapters =
         new Dictionary<string, IAdapter>(StringComparer.OrdinalIgnoreCase)
         {
@@ -28,12 +25,10 @@ public sealed class AdapterService
         };
 
     /// <summary>
-    /// Projects skills into every configured adapter and removes obsolete lorex-managed instruction blocks.
+    /// Projects skills into every configured adapter.
     /// </summary>
     public void Project(string projectRoot, LorexConfig config)
     {
-        CleanupLegacyFiles(projectRoot);
-
         foreach (var adapterName in config.Adapters)
         {
             if (!KnownAdapters.TryGetValue(adapterName, out var adapter))
@@ -51,7 +46,6 @@ public sealed class AdapterService
         if (!KnownAdapters.TryGetValue(adapterName, out var adapter))
             throw new ArgumentException($"Unknown adapter '{adapterName}'. Known adapters: {string.Join(", ", KnownAdapters.Keys)}");
 
-        CleanupLegacyFiles(projectRoot);
         ProjectAdapter(projectRoot, config, adapter);
     }
 
@@ -71,49 +65,6 @@ public sealed class AdapterService
             GeminiContextProjection gemini => [gemini.SettingsPath],
             _ => []
         };
-    }
-
-    internal void CleanupLegacyFiles(string projectRoot)
-    {
-        foreach (var adapter in KnownAdapters.Values)
-        {
-            foreach (var path in adapter.LegacyPaths(projectRoot))
-                CleanupLegacyFile(path);
-        }
-    }
-
-    internal static void CleanupLegacyFile(string filePath)
-    {
-        if (!File.Exists(filePath))
-            return;
-
-        var existing = File.ReadAllText(filePath);
-        var updated = RemoveLegacyBlock(existing);
-
-        if (string.Equals(existing, updated, StringComparison.Ordinal))
-            return;
-
-        if (string.IsNullOrWhiteSpace(updated))
-        {
-            File.Delete(filePath);
-            DeleteParentDirectoryIfEmpty(filePath);
-            return;
-        }
-
-        File.WriteAllText(filePath, updated.Trim() + "\n");
-    }
-
-    internal static string RemoveLegacyBlock(string content)
-    {
-        var startIdx = content.IndexOf(LegacyStartMarker, StringComparison.Ordinal);
-        var endIdx = content.IndexOf(LegacyEndMarker, StringComparison.Ordinal);
-
-        if (startIdx < 0 || endIdx < 0 || endIdx <= startIdx)
-            return content;
-
-        return string.Concat(
-            content.AsSpan(0, startIdx),
-            content.AsSpan(endIdx + LegacyEndMarker.Length));
     }
 
     internal string RenderCursorRule(string projectRoot, string skillName)
@@ -471,16 +422,6 @@ public sealed class AdapterService
             .Equals(
                 Path.GetFullPath(right).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
                 StringComparison.OrdinalIgnoreCase);
-
-    private static void DeleteParentDirectoryIfEmpty(string filePath)
-    {
-        var parent = Path.GetDirectoryName(filePath);
-        if (string.IsNullOrEmpty(parent) || !Directory.Exists(parent))
-            return;
-
-        if (!Directory.EnumerateFileSystemEntries(parent).Any())
-            Directory.Delete(parent);
-    }
 
     private static string GetSkillDescription(string projectRoot, string skillName)
     {

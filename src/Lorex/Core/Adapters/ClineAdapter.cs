@@ -11,7 +11,4 @@ public sealed class ClineAdapter : IAdapter
     public bool DetectExisting(string projectRoot) =>
         Directory.Exists(Path.Combine(projectRoot, ".cline", "skills")) ||
         File.Exists(Path.Combine(projectRoot, ".clinerules"));
-
-    public IReadOnlyList<string> LegacyPaths(string projectRoot) =>
-        [Path.Combine(projectRoot, ".clinerules")];
 }

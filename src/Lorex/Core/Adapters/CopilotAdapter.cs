@@ -11,7 +11,4 @@ public sealed class CopilotAdapter : IAdapter
     public bool DetectExisting(string projectRoot) =>
         Directory.Exists(Path.Combine(projectRoot, ".github", "skills")) ||
         File.Exists(Path.Combine(projectRoot, ".github", "copilot-instructions.md"));
-
-    public IReadOnlyList<string> LegacyPaths(string projectRoot) =>
-        [Path.Combine(projectRoot, ".github", "copilot-instructions.md")];
 }

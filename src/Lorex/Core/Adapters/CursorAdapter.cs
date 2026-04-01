@@ -11,7 +11,4 @@ public sealed class CursorAdapter : IAdapter
     public bool DetectExisting(string projectRoot) =>
         Directory.Exists(Path.Combine(projectRoot, ".cursor", "rules")) ||
         File.Exists(Path.Combine(projectRoot, ".cursorrules"));
-
-    public IReadOnlyList<string> LegacyPaths(string projectRoot) =>
-        [Path.Combine(projectRoot, ".cursorrules")];
 }

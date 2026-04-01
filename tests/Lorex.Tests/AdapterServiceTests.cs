@@ -18,52 +18,6 @@ public sealed class AdapterServiceTests
     };
 
     [Fact]
-    public void RemoveLegacyBlock_WhenMarkersPresent_RemovesLorexSection()
-    {
-        const string existing = """
-            Before
-
-            <!-- lorex:start -->
-            old block
-            <!-- lorex:end -->
-
-            After
-            """;
-
-        var updated = AdapterService.RemoveLegacyBlock(existing);
-
-        Assert.DoesNotContain("old block", updated);
-        Assert.Contains("Before", updated);
-        Assert.Contains("After", updated);
-    }
-
-    [Fact]
-    public void CleanupLegacyFile_WhenOnlyLorexBlockExists_DeletesFile()
-    {
-        var tempDir = Path.Combine(Path.GetTempPath(), $"lorex-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDir);
-        var filePath = Path.Combine(tempDir, "AGENTS.md");
-
-        try
-        {
-            File.WriteAllText(filePath, """
-                <!-- lorex:start -->
-                block
-                <!-- lorex:end -->
-                """);
-
-            AdapterService.CleanupLegacyFile(filePath);
-
-            Assert.False(File.Exists(filePath));
-        }
-        finally
-        {
-            if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, recursive: true);
-        }
-    }
-
-    [Fact]
     public void RenderCursorRule_UsesDescriptionAndBodyFromSkill()
     {
         var service = new AdapterService();

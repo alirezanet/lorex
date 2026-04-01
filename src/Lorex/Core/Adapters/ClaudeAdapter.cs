@@ -11,7 +11,4 @@ public sealed class ClaudeAdapter : IAdapter
     public bool DetectExisting(string projectRoot) =>
         Directory.Exists(Path.Combine(projectRoot, ".claude", "skills")) ||
         File.Exists(Path.Combine(projectRoot, "CLAUDE.md"));
-
-    public IReadOnlyList<string> LegacyPaths(string projectRoot) =>
-        [Path.Combine(projectRoot, "CLAUDE.md")];
 }

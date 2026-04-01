@@ -11,7 +11,4 @@ public sealed class CodexAdapter : IAdapter
     public bool DetectExisting(string projectRoot) =>
         Directory.Exists(Path.Combine(projectRoot, ".agents", "skills")) ||
         File.Exists(Path.Combine(projectRoot, "AGENTS.md"));
-
-    public IReadOnlyList<string> LegacyPaths(string projectRoot) =>
-        [Path.Combine(projectRoot, "AGENTS.md")];
 }

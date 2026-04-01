@@ -11,7 +11,4 @@ public sealed class GeminiAdapter : IAdapter
     public bool DetectExisting(string projectRoot) =>
         File.Exists(Path.Combine(projectRoot, ".gemini", "settings.json")) ||
         File.Exists(Path.Combine(projectRoot, "GEMINI.md"));
-
-    public IReadOnlyList<string> LegacyPaths(string projectRoot) =>
-        [Path.Combine(projectRoot, "GEMINI.md")];
 }

@@ -11,7 +11,4 @@ public sealed class OpenCodeAdapter : IAdapter
     public bool DetectExisting(string projectRoot) =>
         Directory.Exists(Path.Combine(projectRoot, ".opencode", "skills")) ||
         File.Exists(Path.Combine(projectRoot, "opencode.md"));
-
-    public IReadOnlyList<string> LegacyPaths(string projectRoot) =>
-        [Path.Combine(projectRoot, "opencode.md")];
 }

@@ -11,7 +11,4 @@ public sealed class WindsurfAdapter : IAdapter
     public bool DetectExisting(string projectRoot) =>
         Directory.Exists(Path.Combine(projectRoot, ".windsurf", "skills")) ||
         File.Exists(Path.Combine(projectRoot, ".windsurfrules"));
-
-    public IReadOnlyList<string> LegacyPaths(string projectRoot) =>
-        [Path.Combine(projectRoot, ".windsurfrules")];
 }
