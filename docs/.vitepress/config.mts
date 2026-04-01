@@ -9,10 +9,10 @@ export default defineConfig({
 
   title: 'Lorex',
   description: 'The Shared Knowledge Registry for AI Agents and People',
-  base: '/lorex/',
+  base: '/Lorex/',
 
   head: [
-    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/lorex/logo.svg' }],
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/Lorex/logo.svg' }],
     ['meta', { name: 'og:type', content: 'website' }],
     ['meta', { name: 'og:title', content: 'Lorex — AI Skill Manager' }],
     ['meta', { name: 'og:description', content: 'Stop repeating yourself to AI. Version-control your knowledge and share it across every agent.' }],

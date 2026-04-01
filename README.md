@@ -8,7 +8,7 @@
 [![Native AOT](https://img.shields.io/badge/Native-AOT-blue.svg)](https://docs.microsoft.com/en-us/dotnet/core/deploying/native-aot/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](#license)
 [![Status](https://img.shields.io/badge/status-early%20beta-orange.svg)](#contributing)
-[![Docs](https://img.shields.io/badge/docs-alirezanet.github.io%2Florex-blue.svg)](https://alirezanet.github.io/lorex/)
+[![Docs](https://img.shields.io/badge/docs-alirezanet.github.io%2FLorex-blue.svg)](https://alirezanet.github.io/Lorex/)
 
 *Lorex is under active development. Expect rapid changes, rough edges, and frequent improvements.*
 
