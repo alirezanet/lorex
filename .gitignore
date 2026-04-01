@@ -39,6 +39,7 @@ Thumbs.db
 # lorex-generated agent projections
 .agents/skills/
 .claude/skills/
+.claude/settings.local.json
 .cline/skills/
 .github/skills/
 .windsurf/skills/
