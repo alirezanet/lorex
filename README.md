@@ -5,6 +5,7 @@
 **Stop repeating yourself to AI.** Lorex turns your architecture notes, conventions, and runbooks into version-controlled "Skills" that every AI agent understands.
 
 [![CI](https://github.com/alirezanet/lorex/actions/workflows/ci.yml/badge.svg)](https://github.com/alirezanet/lorex/actions/workflows/ci.yml)
+[![Native AOT](https://img.shields.io/badge/Native-AOT-blue.svg)](https://docs.microsoft.com/en-us/dotnet/core/deploying/native-aot/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](#license)
 [![Status](https://img.shields.io/badge/status-early%20beta-orange.svg)](#contributing)
 
