@@ -193,6 +193,7 @@ Native AOT publish profiles remain under `src/Lorex/Properties/PublishProfiles/`
 2. **If your change affects architecture, repo layout, contribution workflow, or the lorex-contributing skill content itself, you must update `.lorex/skills/lorex-contributing/SKILL.md` (this file) in the same commit.**
 3. **If your change affects any user-facing CLI behavior, adapter paths, skill format, or registry behavior, you must update the relevant `docs/` page(s) in the same commit.** See the [docs/ update rules](#docs-update-rules) table below.
 4. **Never finish a contribution without verifying that every agent reading only the skill files will still get an accurate picture.** If the code changed but the skill files did not, the contribution is incomplete.
+5. **Always run `dotnet build` and `dotnet test` after making code changes and before considering a task done.** A contribution with a build error or a failing test is never complete, regardless of how correct the logic appears.
 
 ## Common contribution tasks
 
@@ -288,5 +289,6 @@ The `docs/` directory is a VitePress site published at https://alirezanet.github
 - Native skill-folder projections are considered Lorex-managed only when the target entry is a symlink into `.lorex/skills`.
 - `SimpleYamlParser` is a minimal parser — it does not support multi-line values, anchors, or complex YAML. Keep frontmatter simple.
 - `LorexJsonContext` is an AOT-safe source-generated JSON context. Adding new serialized types requires registering them in `LorexJsonContext.cs`.
+- **Source-generated JSON deserializers do not guarantee that `init`-property defaults are applied for fields absent from the JSON** — they can arrive as `null` even when the model declares `= []`. `SkillService.ReadConfig` normalises all collection properties after deserialization; if you add new non-nullable collection fields to `LorexConfig` or `GlobalConfig`, add a corresponding null-coalescing line there.
 - `lorex create` and `lorex generate` are aliases — both route to `CreateCommand`. Keep both aliases in sync in `Program.cs` if the command is renamed.
 - When testing recommendation logic, remember that `RegistrySkillQueryService` normalises tags to lowercase and trims whitespace. Test data should match this contract.

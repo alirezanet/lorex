@@ -22,8 +22,17 @@ public sealed class SkillService(RegistryService registry)
             throw new FileNotFoundException($"lorex is not initialised in this directory. Run `lorex init` first.", path);
 
         var json = File.ReadAllText(path);
-        return JsonSerializer.Deserialize(json, LorexJsonContext.Default.LorexConfig)
+        var config = JsonSerializer.Deserialize(json, LorexJsonContext.Default.LorexConfig)
             ?? throw new InvalidDataException("lorex.json is empty or invalid.");
+
+        // Normalize: source-generated deserializers may not apply init-property defaults
+        // for fields absent from the JSON (they stay at their CLR default, i.e. null).
+        return config with
+        {
+            Adapters = config.Adapters ?? [],
+            InstalledSkills = config.InstalledSkills ?? [],
+            InstalledSkillVersions = config.InstalledSkillVersions ?? [],
+        };
     }
 
     public void WriteConfig(string projectRoot, LorexConfig config)
@@ -44,7 +53,8 @@ public sealed class SkillService(RegistryService registry)
         try
         {
             var json = File.ReadAllText(GlobalConfigPath);
-            return JsonSerializer.Deserialize(json, LorexJsonContext.Default.GlobalConfig) ?? new GlobalConfig();
+            var config = JsonSerializer.Deserialize(json, LorexJsonContext.Default.GlobalConfig) ?? new GlobalConfig();
+            return config with { Registries = config.Registries ?? [] };
         }
         catch { return new GlobalConfig(); }
     }
@@ -84,6 +94,52 @@ public sealed class SkillService(RegistryService registry)
         return updated;
     }
 
+    // ── Version helpers ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns the version for an installed skill: uses the cached value from <paramref name="config"/>
+    /// when available, otherwise reads it live from the skill file. Returns <c>"?"</c> if neither source
+    /// has a version.
+    /// </summary>
+    public string GetInstalledSkillVersion(string projectRoot, string skillName, LorexConfig config)
+    {
+        if (config.InstalledSkillVersions.TryGetValue(skillName, out var cached) && !string.IsNullOrEmpty(cached))
+            return cached;
+
+        return ReadSkillVersion(SkillDir(projectRoot, skillName)) ?? "?";
+    }
+
+    /// <summary>
+    /// Reads the version string from a skill directory's entry file. Returns null on any failure.
+    /// </summary>
+    private static string? ReadSkillVersion(string skillDir)
+    {
+        var path = SkillFileConvention.ResolveEntryPath(skillDir);
+        if (path is null) return null;
+        try { return SimpleYamlParser.ParseSkillMetadataFromMarkdown(File.ReadAllText(path)).Version; }
+        catch { return null; }
+    }
+
+    /// <summary>
+    /// Reads the version from each skill directory and persists the results into
+    /// <c>InstalledSkillVersions</c> in a single <c>lorex.json</c> write.
+    /// Used by <c>lorex init</c> to back-fill versions for built-in and discovered skills.
+    /// </summary>
+    public void TrackInstalledVersions(string projectRoot, IEnumerable<string> skillNames)
+    {
+        var config = ReadConfig(projectRoot);
+        var versions = new Dictionary<string, string>(config.InstalledSkillVersions, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var name in skillNames)
+        {
+            var version = ReadSkillVersion(SkillDir(projectRoot, name));
+            if (version is not null)
+                versions[name] = version;
+        }
+
+        WriteConfig(projectRoot, config with { InstalledSkillVersions = versions });
+    }
+
     // ── Uninstall ─────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -97,11 +153,14 @@ public sealed class SkillService(RegistryService registry)
             Directory.Delete(linkPath, recursive: true);
 
         var config = ReadConfig(projectRoot);
+        var versions = new Dictionary<string, string>(config.InstalledSkillVersions, StringComparer.OrdinalIgnoreCase);
+        versions.Remove(skillName);
         WriteConfig(projectRoot, config with
         {
             InstalledSkills = config.InstalledSkills
                 .Where(s => !s.Equals(skillName, StringComparison.OrdinalIgnoreCase))
-                .ToArray()
+                .ToArray(),
+            InstalledSkillVersions = versions,
         });
     }
 
@@ -140,14 +199,19 @@ public sealed class SkillService(RegistryService registry)
                 "Lorex requires symlink support for installed registry skills. Enable symlinks and try again.");
         }
 
-        if (!config.InstalledSkills.Contains(skillName, StringComparer.OrdinalIgnoreCase))
-        {
-            WriteConfig(projectRoot, config with
-            {
-                InstalledSkills = [.. config.InstalledSkills, skillName]
-            });
-        }
+        config = ReadConfig(projectRoot);
+        var versions = new Dictionary<string, string>(config.InstalledSkillVersions, StringComparer.OrdinalIgnoreCase);
+        var version = ReadSkillVersion(linkPath);
+        if (version is not null)
+            versions[skillName] = version;
 
+        WriteConfig(projectRoot, config with
+        {
+            InstalledSkills = config.InstalledSkills.Contains(skillName, StringComparer.OrdinalIgnoreCase)
+                ? config.InstalledSkills
+                : [.. config.InstalledSkills, skillName],
+            InstalledSkillVersions = versions,
+        });
     }
 
     /// <summary>
@@ -222,7 +286,14 @@ public sealed class SkillService(RegistryService registry)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
-            WriteConfig(projectRoot, config with { InstalledSkills = allInstalled });
+            var versions = new Dictionary<string, string>(config.InstalledSkillVersions, StringComparer.OrdinalIgnoreCase);
+            foreach (var name in installed)
+            {
+                var v = ReadSkillVersion(SkillDir(projectRoot, name));
+                if (v is not null) versions[name] = v;
+            }
+
+            WriteConfig(projectRoot, config with { InstalledSkills = allInstalled, InstalledSkillVersions = versions });
         }
 
         return [.. installed];
@@ -278,6 +349,19 @@ public sealed class SkillService(RegistryService registry)
 
             InstallSkill(projectRoot, skillName, overwriteLocalSkill: true);
             updated.Add(skillName);
+        }
+
+        // Refresh stored versions for every updated skill in one write
+        if (updated.Count > 0)
+        {
+            config = ReadConfig(projectRoot);
+            var versions = new Dictionary<string, string>(config.InstalledSkillVersions, StringComparer.OrdinalIgnoreCase);
+            foreach (var name in updated)
+            {
+                var v = ReadSkillVersion(SkillDir(projectRoot, name));
+                if (v is not null) versions[name] = v;
+            }
+            WriteConfig(projectRoot, config with { InstalledSkillVersions = versions });
         }
 
         return updated;

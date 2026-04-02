@@ -170,6 +170,9 @@ public static class InitCommand
             ServiceFactory.Skills.WriteConfig(projectRoot, config);
         }
 
+        ServiceFactory.Skills.TrackInstalledVersions(projectRoot, config.InstalledSkills);
+        config = ServiceFactory.Skills.ReadConfig(projectRoot);
+
         // ── Project built-in skills into native agent surfaces ────────────────
         ServiceFactory.Adapters.Project(projectRoot, config);
 

@@ -218,6 +218,39 @@ public sealed class CommandArgumentTests
     }
 
     [Fact]
+    public void ListCommand_HasUpdate_ReturnsTrueWhenRegistryVersionIsNewer()
+    {
+        var versions = new Dictionary<string, string> { ["auth"] = "1.0.0" };
+        Assert.True(ListCommand.HasUpdate("2.0.0", versions, "auth"));
+        Assert.True(ListCommand.HasUpdate("1.1.0", versions, "auth"));
+        Assert.True(ListCommand.HasUpdate("1.0.1", versions, "auth"));
+    }
+
+    [Fact]
+    public void ListCommand_HasUpdate_ReturnsFalseWhenVersionsAreEqualOrOlder()
+    {
+        var versions = new Dictionary<string, string> { ["auth"] = "1.0.0" };
+        Assert.False(ListCommand.HasUpdate("1.0.0", versions, "auth")); // same
+        Assert.False(ListCommand.HasUpdate("0.9.0", versions, "auth")); // older
+    }
+
+    [Fact]
+    public void ListCommand_HasUpdate_ReturnsFalseWhenSkillNotInCache()
+    {
+        var versions = new Dictionary<string, string>();
+        Assert.False(ListCommand.HasUpdate("2.0.0", versions, "auth"));
+    }
+
+    [Fact]
+    public void ListCommand_HasUpdate_ReturnsFalseForNonSemverStrings()
+    {
+        // Non-parseable versions should not throw or report an update
+        var versions = new Dictionary<string, string> { ["auth"] = "latest" };
+        Assert.False(ListCommand.HasUpdate("latest", versions, "auth"));
+        Assert.False(ListCommand.HasUpdate("2.0.0", versions, "auth"));
+    }
+
+    [Fact]
     public void SkillService_RequiresOverwriteApproval_IsTrueForLocalDirectoryAndFalseForSymlink()
     {
         var projectRoot = Path.Combine(Path.GetTempPath(), $"lorex-test-{Guid.NewGuid():N}");

@@ -14,4 +14,7 @@ public sealed record LorexConfig
 
     /// <summary>Skill names that have been installed into this project.</summary>
     public string[] InstalledSkills { get; init; } = [];
+
+    /// <summary>Maps installed skill name → version string at the time of install/sync.</summary>
+    public Dictionary<string, string> InstalledSkillVersions { get; init; } = [];
 }

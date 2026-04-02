@@ -38,6 +38,7 @@ public static class ListCommand
             }
 
             var installed = new HashSet<string>(config.InstalledSkills, StringComparer.OrdinalIgnoreCase);
+            var installedVersions = config.InstalledSkillVersions;
             var recommended = ServiceFactory.RegistrySkills.GetRecommendedSkillNames(projectRoot, available, config);
             var recommendedSet = recommended.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -53,11 +54,19 @@ public static class ListCommand
                 .OrderByDescending(s => recommendedSet.Contains(s.Name))
                 .ThenBy(s => s.Name, StringComparer.OrdinalIgnoreCase))
             {
-                var status = installed.Contains(skill.Name)
-                    ? "[green]installed[/]"
-                    : recommendedSet.Contains(skill.Name)
-                    ? "[blue]recommended[/]"
-                    : "[dim]available[/]";
+                string status;
+                if (installed.Contains(skill.Name))
+                {
+                    status = HasUpdate(skill.Version, installedVersions, skill.Name)
+                        ? "[yellow]update available[/]"
+                        : "[green]installed[/]";
+                }
+                else
+                {
+                    status = recommendedSet.Contains(skill.Name)
+                        ? "[blue]recommended[/]"
+                        : "[dim]available[/]";
+                }
 
                 table.AddRow(
                     skill.Name,
@@ -80,5 +89,18 @@ public static class ListCommand
             AnsiConsole.MarkupLine("[red]Error:[/] {0}", Markup.Escape(ex.Message));
             return 1;
         }
+    }
+
+    internal static bool HasUpdate(string registryVersion, Dictionary<string, string> installedVersions, string skillName)
+    {
+        if (!installedVersions.TryGetValue(skillName, out var installedVersion))
+            return false;
+
+        if (System.Version.TryParse(registryVersion, out var rv) &&
+            System.Version.TryParse(installedVersion, out var iv))
+            return rv > iv;
+
+        // Fall back to string comparison — different strings means unknown state, not an update
+        return false;
     }
 }

@@ -64,6 +64,7 @@ public static class StatusCommand
             var table = new Table()
                 .Border(TableBorder.Rounded)
                 .AddColumn("[bold]Skill[/]")
+                .AddColumn("[bold]Version[/]")
                 .AddColumn("[bold]Link type[/]")
                 .AddColumn("[bold]Path[/]");
 
@@ -71,7 +72,8 @@ public static class StatusCommand
             {
                 var dir = ServiceFactory.Skills.SkillDir(projectRoot, name);
                 var (linkType, style) = GetLinkInfo(dir);
-                table.AddRow(name, $"[{style}]{linkType}[/]", Markup.Escape(dir));
+                var version = ServiceFactory.Skills.GetInstalledSkillVersion(projectRoot, name, config);
+                table.AddRow(name, version, $"[{style}]{linkType}[/]", Markup.Escape(dir));
             }
 
             AnsiConsole.Write(table);

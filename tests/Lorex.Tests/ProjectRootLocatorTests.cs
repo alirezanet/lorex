@@ -30,6 +30,16 @@ public sealed class ProjectRootLocatorTests
     [Fact]
     public void ResolveForInit_UsesCurrentDirectoryWhenNoInitializedProjectExists()
     {
+        // Precondition: this test requires that no ancestor of the temp directory
+        // contains a .lorex/lorex.json. On machines with `lorex init --global`,
+        // ~/.lorex/lorex.json exists and the traversal finds it, making the
+        // precondition unmet. Skip gracefully in that case.
+        var globalConfig = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ".lorex", "lorex.json");
+        if (File.Exists(globalConfig))
+            return;
+
         var root = Path.Combine(Path.GetTempPath(), $"lorex-root-{Guid.NewGuid():N}");
 
         try

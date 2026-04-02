@@ -62,6 +62,50 @@ public static class PublishCommand
         {
             try
             {
+                // Version bump check: warn if local version matches what's already in the registry
+                var localSkillDir = ServiceFactory.Skills.SkillDir(projectRoot, skillName);
+                var localEntryPath = Core.Services.SkillFileConvention.ResolveEntryPath(localSkillDir);
+                if (localEntryPath is not null)
+                {
+                    string? localVersion = null;
+                    try { localVersion = Core.Serialization.SimpleYamlParser.ParseSkillMetadataFromMarkdown(File.ReadAllText(localEntryPath)).Version; }
+                    catch { /* best-effort */ }
+
+                    if (localVersion is not null)
+                    {
+                        var registrySkillPath = ServiceFactory.Registry.FindSkillPath(config.Registry!.Url, skillName, refresh: false);
+                        if (registrySkillPath is not null)
+                        {
+                            var registryEntryPath = Core.Services.SkillFileConvention.ResolveEntryPath(registrySkillPath);
+                            string? registryVersion = null;
+                            if (registryEntryPath is not null)
+                                try { registryVersion = Core.Serialization.SimpleYamlParser.ParseSkillMetadataFromMarkdown(File.ReadAllText(registryEntryPath)).Version; }
+                                catch { /* best-effort */ }
+
+                            if (registryVersion is not null &&
+                                string.Equals(localVersion, registryVersion, StringComparison.OrdinalIgnoreCase))
+                            {
+                                AnsiConsole.MarkupLine(
+                                    "[yellow]⚠[/]  Version [bold]{0}[/] of '[bold]{1}[/]' matches the current registry version.",
+                                    Markup.Escape(localVersion), Markup.Escape(skillName));
+                                AnsiConsole.MarkupLine("[dim]Bump the version in SKILL.md before publishing.[/]");
+
+                                var proceed = AnsiConsole.Prompt(
+                                    new SelectionPrompt<string>()
+                                        .Title("Continue anyway?")
+                                        .AddChoices("No, abort", "Yes, publish anyway"));
+
+                                if (string.Equals(proceed, "No, abort", StringComparison.Ordinal))
+                                {
+                                    AnsiConsole.MarkupLine("[dim]Publish aborted.[/]");
+                                    failed = true;
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                }
+
                 Core.Models.PublishResult result = null!;
                 AnsiConsole.Status()
                     .Start($"Publishing [bold]{skillName}[/]...", ctx =>

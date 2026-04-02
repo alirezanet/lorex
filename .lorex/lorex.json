@@ -2,10 +2,16 @@
   "adapters": [
     "copilot",
     "codex",
-    "claude"
+    "claude",
+    "gemini",
+    "opencode"
   ],
   "installedSkills": [
     "lorex",
     "lorex-contributing"
-  ]
+  ],
+  "installedSkillVersions": {
+    "lorex": "1.0.0",
+    "lorex-contributing": "1.0.0"
+  }
 }

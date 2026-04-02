@@ -7,6 +7,7 @@ namespace Lorex.Core.Serialization;
 [JsonSerializable(typeof(GlobalConfig))]
 [JsonSerializable(typeof(RegistryConfig))]
 [JsonSerializable(typeof(RegistryPolicy))]
+[JsonSerializable(typeof(Dictionary<string, string>))]
 [JsonSourceGenerationOptions(
     WriteIndented = true,
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
