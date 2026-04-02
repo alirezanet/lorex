@@ -17,7 +17,7 @@
 ### ℹ️ Who Needs Lorex?
 
   * **Multi-agent users:** People using multiple AI agents who want a single, reusable source of truth for skills.
-  * **Teams:** Groups that want to share AI-ready project knowledge without rewriting it for every person or tool.
+  * **Teams:** Groups that want to share AI-ready knowledge without rewriting it for every person or tool.
   * **Developers:** Those who want project-specific skills to be easy for others to install and use.
   * **Power Users:** People who have productive AI sessions but find it difficult to turn that knowledge into a reusable skill.
 
