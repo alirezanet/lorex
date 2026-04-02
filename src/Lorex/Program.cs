@@ -88,7 +88,7 @@ static int PrintHelp()
 
     Section("Local", g =>
     {
-        Row(g, "init",    "[[<url>]] [[--local]] [[--adapters a,b]]",          "Configure a registry (or run local-only) and set up this project");
+        Row(g, "init",    "[[<url>]] [[--local]] [[--global]] [[--adapters a,b]]",  "Configure a registry and set up this project or global skills");
         Row(g, "create",  "[[<name>]] [[-d desc]] [[-t tags]] [[-o owner]]",   "Scaffold a new skill for AI/manual authoring");
         Row(g, "status",  "",                                                   "Show installed skills and their state");
         Row(g, "refresh", "[[--target adapter]]",                               "Re-project lorex skills into native agent locations");
@@ -96,12 +96,12 @@ static int PrintHelp()
 
     Section("Registry", g =>
     {
-        Row(g, "install",   "[[<skill>…]] [[--all]] [[--recommended]]",  "Install skills from the registry, or choose interactively");
-        Row(g, "uninstall", "[[<skill>…]] [[--all]]",                    "Remove installed skills, or choose interactively");
-        Row(g, "list",      "",                                          "List skills available in the registry");
-        Row(g, "sync",      "",                                          "Pull latest skill versions from the registry");
-        Row(g, "publish",   "[[<skill>…]]",                             "Push local skills to the registry");
-        Row(g, "registry",  "",                                         "Interactively configure the connected registry policy");
+        Row(g, "install",   "[[<skill>…]] [[--all]] [[--recommended]] [[--global]]",  "Install skills from the registry, or choose interactively");
+        Row(g, "uninstall", "[[<skill>…]] [[--all]]",                                 "Remove installed skills, or choose interactively");
+        Row(g, "list",      "",                                                        "List skills available in the registry");
+        Row(g, "sync",      "[[--global]]",                                            "Pull latest skill versions from the registry");
+        Row(g, "publish",   "[[<skill>…]]",                                           "Push local skills to the registry");
+        Row(g, "registry",  "",                                                        "Interactively configure the connected registry policy");
     });
 
     AnsiConsole.MarkupLine("[dim]Run [bold]lorex <command> --help[/] for command-specific help.[/]");

@@ -132,6 +132,138 @@ public sealed class RegistryServiceTests
         }
     }
 
+    // ── Nested skill discovery ─────────────────────────────────────────────
+
+    [Fact]
+    public void EnumerateSkillDirectories_FindsFlatSkills()
+    {
+        var root = CreateTempDir();
+        try
+        {
+            CreateSkill(root, "auth");
+            CreateSkill(root, "api");
+
+            var found = RegistryService.EnumerateSkillDirectories(root).Select(Path.GetFileName).OrderBy(n => n).ToList();
+
+            Assert.Equal(["api", "auth"], found);
+        }
+        finally { TryDeleteDirectory(root); }
+    }
+
+    [Fact]
+    public void EnumerateSkillDirectories_FindsNestedSkills()
+    {
+        var root = CreateTempDir();
+        try
+        {
+            CreateSkill(root, "security", "auth");
+            CreateSkill(root, "security", "rbac");
+            CreateSkill(root, "devops", "ci-pipeline");
+
+            var found = RegistryService.EnumerateSkillDirectories(root).Select(Path.GetFileName).OrderBy(n => n).ToList();
+
+            Assert.Equal(["auth", "ci-pipeline", "rbac"], found);
+        }
+        finally { TryDeleteDirectory(root); }
+    }
+
+    [Fact]
+    public void EnumerateSkillDirectories_FindsMixOfFlatAndNested()
+    {
+        var root = CreateTempDir();
+        try
+        {
+            CreateSkill(root, "api");
+            CreateSkill(root, "security", "auth");
+
+            var found = RegistryService.EnumerateSkillDirectories(root).Select(Path.GetFileName).OrderBy(n => n).ToList();
+
+            Assert.Equal(["api", "auth"], found);
+        }
+        finally { TryDeleteDirectory(root); }
+    }
+
+    [Fact]
+    public void EnumerateSkillDirectories_SkipsDuplicateLeafNamesNotEnumerated()
+    {
+        // EnumerateSkillDirectories yields all — dedup is the caller's job
+        var root = CreateTempDir();
+        try
+        {
+            CreateSkill(root, "group-a", "auth");
+            CreateSkill(root, "group-b", "auth");
+
+            var found = RegistryService.EnumerateSkillDirectories(root).Select(Path.GetFileName).ToList();
+
+            Assert.Equal(2, found.Count);
+            Assert.All(found, name => Assert.Equal("auth", name));
+        }
+        finally { TryDeleteDirectory(root); }
+    }
+
+    [Fact]
+    public void EnumerateSkillDirectories_IgnoresEmptyCategories()
+    {
+        var root = CreateTempDir();
+        try
+        {
+            // Category with no skill inside
+            Directory.CreateDirectory(Path.Combine(root, "empty-category", "not-a-skill"));
+
+            var found = RegistryService.EnumerateSkillDirectories(root).ToList();
+
+            Assert.Empty(found);
+        }
+        finally { TryDeleteDirectory(root); }
+    }
+
+    [Fact]
+    public void EnumerateSkillDirectories_FindsDeeplyNestedSkills()
+    {
+        var root = CreateTempDir();
+        try
+        {
+            CreateSkill(root, "level1", "level2", "deep-skill");
+
+            var found = RegistryService.EnumerateSkillDirectories(root).Select(Path.GetFileName).ToList();
+
+            Assert.Equal(["deep-skill"], found);
+        }
+        finally { TryDeleteDirectory(root); }
+    }
+
+    // ── Test helpers ─────────────────────────────────────────────────────────
+
+    private static string CreateTempDir()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"lorex-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(path);
+        return path;
+    }
+
+    private static void CreateSkill(string root, params string[] segments)
+    {
+        var dir = Path.Combine([root, .. segments]);
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "SKILL.md"), $"# {segments[^1]}\n");
+    }
+
+    private static void CreateSkillWithFrontmatter(string root, string category, string name, string description)
+    {
+        var dir = Path.Combine(root, category, name);
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "SKILL.md"),
+            $"---\nname: {name}\ndescription: {description}\nversion: 1.0.0\ntags: \nowner: test\n---\n\n# {name}\n");
+    }
+
+    private static void CreateSkillWithFrontmatter(string root, string name, string description)
+    {
+        var dir = Path.Combine(root, name);
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "SKILL.md"),
+            $"---\nname: {name}\ndescription: {description}\nversion: 1.0.0\ntags: \nowner: test\n---\n\n# {name}\n");
+    }
+
     private static string RunGit(string workingDirectory, params string[] arguments)
     {
         var psi = new ProcessStartInfo("git")

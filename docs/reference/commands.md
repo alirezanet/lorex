@@ -2,6 +2,8 @@
 
 All commands resolve the project root by walking **up** from the current directory to the nearest ancestor that contains `.lorex/lorex.json`. You never need to `cd` to the repo root before running a lorex command.
 
+Commands that accept `--global` bypass project-root discovery entirely and operate on `~/.lorex/` instead. See [Global Skills](#global-skills) for the workflow.
+
 ---
 
 ## `lorex init`
@@ -11,6 +13,7 @@ Set up Lorex in a project, configure a registry, and choose which AI agent adapt
 ```bash
 lorex init [<registry-url>] [--local] [--adapters <a,b,...>]
 lorex init                         # guided interactive setup
+lorex init --global [<url>]        # user-level (global) setup
 ```
 
 ### Flags
@@ -19,6 +22,7 @@ lorex init                         # guided interactive setup
 | :--- | :--- | :--- |
 | `<registry-url>` | — | Git URL of a registry (HTTPS or SSH). Skip to use the interactive picker. |
 | `--local` | — | Set up without a registry. Skills are project-local only. |
+| `--global` | — | Initialise global lorex at `~/.lorex/` instead of the current project. Skills are projected into user-level agent locations (`~/.claude/skills`, `~/.gemini/settings.json`, etc.). |
 | `--adapters <list>` | `-a` | Comma-separated list of adapters. Skips the adapter prompt. |
 
 ### Interactive flow
@@ -65,6 +69,9 @@ lorex init --local --adapters claude,copilot
 
 # CI / scripted use
 lorex init https://github.com/your-org/ai-skills.git -a codex,claude
+
+# Global (user-level) setup — works from any directory
+lorex init --global https://github.com/your-org/ai-skills.git --adapters claude,gemini
 ```
 
 ---
@@ -122,7 +129,7 @@ lorex create auth-logic -d "Token validation and session rules" -t "auth,securit
 Install one or more skills from the registry into this project.
 
 ```bash
-lorex install [<skill>...] [--all] [--recommended]
+lorex install [<skill>...] [--all] [--recommended] [--global]
 lorex install                      # interactive picker
 ```
 
@@ -133,6 +140,7 @@ lorex install                      # interactive picker
 | `<skill>...` | One or more skill names to install directly. |
 | `--all` | Install every skill in the registry that is not already installed. |
 | `--recommended` | Install only skills recommended for this project (matched by tags). |
+| `--global` | Install into `~/.lorex/skills/` and project into user-level agent locations. Requires `lorex init --global` to have been run first. |
 
 `--all` and `--recommended` cannot be used together. Neither can be combined with explicit skill names.
 
@@ -164,6 +172,10 @@ lorex install auth-logic
 lorex install auth-logic api-conventions checkout-flow
 lorex install --recommended
 lorex install --all
+
+# Global installs — available from any directory, no project required
+lorex install auth-logic --global
+lorex install --all --global
 ```
 
 ---
@@ -267,8 +279,14 @@ Adapters:     claude, copilot, codex
 Pull the latest skill content from the registry.
 
 ```bash
-lorex sync
+lorex sync [--global]
 ```
+
+### Flags
+
+| Flag | Description |
+| :--- | :--- |
+| `--global` | Sync global skills at `~/.lorex/skills/` instead of the current project. |
 
 ### What it does
 
@@ -288,6 +306,13 @@ Sync will replace local skill auth-logic with the registry version. Continue?
 ```
 
 Skills you decline to overwrite are skipped and reported at the end.
+
+### Examples
+
+```bash
+lorex sync               # sync current project
+lorex sync --global      # sync globally installed skills
+```
 
 ::: info Registry required
 `lorex sync` requires a registry. Run `lorex init <url>` first if you are in local-only mode.
@@ -416,3 +441,94 @@ Print command usage and exit.
 lorex --help
 lorex -h
 ```
+
+---
+
+## Global Skills
+
+The `--global` flag lets you install and sync skills **without being inside a project**. Skills are stored in `~/.lorex/skills/` and projected into your user-level agent directories (`~/.claude/skills`, `~/.gemini/settings.json`, etc.), so they are available in every project you open.
+
+### Setup
+
+```bash
+# 1. Initialise — run once, from any directory
+lorex init --global https://github.com/your-org/ai-skills.git --adapters claude,gemini
+
+# 2. Install skills
+lorex install --all --global
+
+# 3. Keep skills up to date
+lorex sync --global
+```
+
+### Directory layout
+
+```
+~/.lorex/
+├── lorex.json          ← global config (registry, adapters, installed skills)
+└── skills/
+    ├── auth-logic/     [symlink] → ~/.lorex/cache/<registry>/skills/auth-logic
+    └── api-conventions/[symlink] → ~/.lorex/cache/<registry>/skills/api-conventions
+
+~/.claude/skills/
+├── auth-logic/         [symlink] → ~/.lorex/skills/auth-logic
+└── api-conventions/    [symlink] → ~/.lorex/skills/api-conventions
+
+~/.gemini/settings.json ← updated to include global skill directories
+```
+
+### Comparison: project vs global
+
+| | Project (`lorex init`) | Global (`lorex init --global`) |
+| :--- | :--- | :--- |
+| Config location | `.lorex/lorex.json` | `~/.lorex/lorex.json` |
+| Skills location | `.lorex/skills/` | `~/.lorex/skills/` |
+| Agent projections | `.claude/skills/`, `.gemini/settings.json`, … | `~/.claude/skills/`, `~/.gemini/settings.json`, … |
+| Scope | One repository | All projects on this machine |
+| Run from | Inside the repository | Any directory |
+
+::: tip
+Project skills and global skills work independently. A project can have its own `lorex init` with project-specific skills, and those are completely separate from your globally installed skills.
+:::
+
+---
+
+## Nested Registry Layout
+
+Skill registries support organizing skills into nested subdirectories for logical grouping. Skills are identified by their **leaf directory name** and are flattened on install.
+
+### Registry structure
+
+```
+skills/
+├── api-conventions/          ← flat (traditional)
+│   └── SKILL.md
+├── security/                 ← category folder (no SKILL.md)
+│   ├── auth-logic/
+│   │   └── SKILL.md
+│   └── rbac/
+│       └── SKILL.md
+└── devops/
+    └── ci-pipeline/
+        └── SKILL.md
+```
+
+### What gets installed
+
+All four skills are discovered regardless of nesting depth. After `lorex install --all`, the project layout is flat:
+
+```
+.lorex/skills/
+├── api-conventions/  → symlink
+├── auth-logic/       → symlink
+├── rbac/             → symlink
+└── ci-pipeline/      → symlink
+```
+
+### Rules
+
+- A directory is recognized as a skill if it contains `SKILL.md`, `skill.md`, or `metadata.yaml`
+- Category folders (directories without a skill entry file) are traversed recursively
+- **Skill names must be unique across the entire registry tree.** If two nested paths share the same leaf name (e.g., `security/auth` and `legacy/auth`), only the first one found is used
+- `lorex publish` places new skills flat under `skills/` — nesting is a registry-side organizational choice
+- Nesting depth is unlimited, but keeping it to one or two levels is recommended

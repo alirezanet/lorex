@@ -11,19 +11,31 @@ public static class InitCommand
 {
     private const string AddNewRegistry = "+ Enter a new registry URL";
     private const string UseLocalOnly = "- Keep this repo local-only";
+    private const string GlobalFlag = "--global";
 
     /// <summary>Runs the command. Returns 0 on success, 1 on failure.</summary>
     /// <remarks>
     /// Non-interactive usage: <c>lorex init &lt;url&gt; [--adapters copilot,codex]</c><br/>
     /// Local-only (no registry): <c>lorex init --local [--adapters copilot,codex]</c><br/>
+    /// Global (user-level) usage: <c>lorex init --global [&lt;url&gt;] [--adapters a,b]</c><br/>
     /// Interactive usage:     <c>lorex init</c> (guided setup for registry and adapters)
     /// </remarks>
     public static int Run(string[] args)
     {
-        var projectRoot = ProjectRootLocator.ResolveForInit(Directory.GetCurrentDirectory());
+        var isGlobal = args.Any(a => string.Equals(a, GlobalFlag, StringComparison.OrdinalIgnoreCase));
+
+        if (isGlobal && OperatingSystem.IsWindows() && !WindowsDevModeHelper.IsSymlinkAvailable())
+        {
+            if (!WindowsDevModeHelper.EnsureSymlinkOrElevate())
+                return 0; // elevated process was launched
+        }
+
+        var projectRoot = isGlobal
+            ? GlobalRootLocator.GetGlobalRoot()
+            : ProjectRootLocator.ResolveForInit(Directory.GetCurrentDirectory());
 
         // ── Parse flags ───────────────────────────────────────────────────────
-        // Accept: lorex init <url> [--adapters a,b,c]
+        // Accept: lorex init <url> [--adapters a,b,c] [--global]
         string? urlArg = null;
         string[]? adapterArg = null;
         bool localOnly = false;
@@ -40,7 +52,10 @@ public static class InitCommand
 
         bool nonInteractive = urlArg is not null || localOnly;
 
-        AnsiConsole.MarkupLine("[bold]Initialising lorex for project:[/] [dim]{0}[/]", projectRoot);
+        if (isGlobal)
+            AnsiConsole.MarkupLine("[bold]Initialising lorex globally at:[/] [dim]{0}[/]", Path.Combine(projectRoot, ".lorex"));
+        else
+            AnsiConsole.MarkupLine("[bold]Initialising lorex for project:[/] [dim]{0}[/]", projectRoot);
         AnsiConsole.WriteLine();
 
         // ── Registry URL ──────────────────────────────────────────────────────

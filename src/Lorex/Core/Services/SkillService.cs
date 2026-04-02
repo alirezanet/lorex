@@ -111,12 +111,12 @@ public sealed class SkillService(RegistryService registry)
     /// Creates a symlink .lorex/skills/&lt;name&gt; → registry cache path and records the skill in lorex.json.
     /// Symlinks are required for registry installs.
     /// </summary>
-    public void InstallSkill(string projectRoot, string skillName, bool overwriteLocalSkill = false)
+    public void InstallSkill(string projectRoot, string skillName, bool overwriteLocalSkill = false, bool refreshRegistry = true)
     {
         var config = ReadConfig(projectRoot);
         if (config.Registry is null)
             throw new InvalidOperationException("No registry configured. Run `lorex init <url>` to connect a registry.");
-        var sourcePath = registry.FindSkillPath(config.Registry.Url, skillName)
+        var sourcePath = registry.FindSkillPath(config.Registry.Url, skillName, refresh: refreshRegistry)
             ?? throw new InvalidOperationException($"Skill '{skillName}' not found in registry '{config.Registry.Url}'.");
 
         var linkPath = SkillDir(projectRoot, skillName);
@@ -148,6 +148,84 @@ public sealed class SkillService(RegistryService registry)
             });
         }
 
+    }
+
+    /// <summary>
+    /// Installs multiple skills in parallel. The registry cache is refreshed once upfront,
+    /// a name→path index is built once, symlinks are created concurrently, and <c>lorex.json</c>
+    /// is written once at the end.
+    /// </summary>
+    public IReadOnlyList<string> InstallSkillsBatch(
+        string projectRoot,
+        IReadOnlyList<string> skillNames,
+        Func<string, bool>? shouldOverwrite = null)
+    {
+        var config = ReadConfig(projectRoot);
+        if (config.Registry is null)
+            throw new InvalidOperationException("No registry configured. Run `lorex init <url>` to connect a registry.");
+
+        // Single upfront cache refresh + build path index once
+        registry.EnsureCache(config.Registry.Url);
+        var pathIndex = registry.BuildSkillPathIndex(config.Registry.Url, refresh: false);
+
+        var skillsDir = Path.Combine(projectRoot, LorexDir, "skills");
+        Directory.CreateDirectory(skillsDir);
+
+        var installed = new System.Collections.Concurrent.ConcurrentBag<string>();
+        var errors = new System.Collections.Concurrent.ConcurrentBag<(string SkillName, Exception Error)>();
+
+        Parallel.ForEach(skillNames, skillName =>
+        {
+            try
+            {
+                if (!pathIndex.TryGetValue(skillName, out var sourcePath))
+                    throw new InvalidOperationException($"Skill '{skillName}' not found in registry '{config.Registry.Url}'.");
+
+                var linkPath = SkillDir(projectRoot, skillName);
+
+                if (Directory.Exists(linkPath))
+                {
+                    var overwrite = shouldOverwrite?.Invoke(skillName) ?? false;
+                    if (!IsSymlink(linkPath) && !overwrite)
+                        return; // skip — local skill, not approved for overwrite
+
+                    Directory.Delete(linkPath, recursive: true);
+                }
+
+                if (!TryCreateSymlink(linkPath, sourcePath))
+                {
+                    throw new InvalidOperationException(
+                        "Lorex requires symlink support for installed registry skills. Enable symlinks and try again.");
+                }
+
+                installed.Add(skillName);
+            }
+            catch (Exception ex)
+            {
+                errors.Add((skillName, ex));
+            }
+        });
+
+        if (errors.Count > 0)
+        {
+            var first = errors.First();
+            throw new InvalidOperationException(
+                $"Failed to install skill '{first.SkillName}': {first.Error.Message}", first.Error);
+        }
+
+        // Single config write at the end
+        if (installed.Count > 0)
+        {
+            config = ReadConfig(projectRoot); // re-read in case of concurrent changes
+            var allInstalled = config.InstalledSkills
+                .Concat(installed)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            WriteConfig(projectRoot, config with { InstalledSkills = allInstalled });
+        }
+
+        return [.. installed];
     }
 
     // ── Sync ──────────────────────────────────────────────────────────────────

@@ -7,10 +7,22 @@ namespace Lorex.Commands;
 /// <summary>Implements <c>lorex sync</c>: pulls the registry cache so all symlinked skills reflect the latest content.</summary>
 public static class SyncCommand
 {
+    private const string GlobalFlag = "--global";
+
     /// <summary>Runs the command. Returns 0 on success, 1 on failure.</summary>
     public static int Run(string[] args)
     {
-        var projectRoot = ProjectRootLocator.ResolveForExistingProject(Directory.GetCurrentDirectory());
+        var isGlobal = args.Any(a => string.Equals(a, GlobalFlag, StringComparison.OrdinalIgnoreCase));
+
+        if (isGlobal && OperatingSystem.IsWindows() && !WindowsDevModeHelper.IsSymlinkAvailable())
+        {
+            if (!WindowsDevModeHelper.EnsureSymlinkOrElevate())
+                return 0; // elevated process was launched
+        }
+
+        var projectRoot = isGlobal
+            ? GlobalRootLocator.ResolveForExistingGlobal()
+            : ProjectRootLocator.ResolveForExistingProject(Directory.GetCurrentDirectory());
 
         try
         {

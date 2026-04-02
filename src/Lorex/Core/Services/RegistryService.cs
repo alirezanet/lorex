@@ -34,15 +34,70 @@ public sealed class RegistryService(GitService git)
         return cacheDir;
     }
 
-    /// <summary>Finds a skill folder inside the cached registry. Returns null if not found.</summary>
+    /// <summary>Finds a skill folder inside the cached registry. Returns null if not found.
+    /// Supports both flat (<c>skills/name</c>) and nested (<c>skills/category/name</c>) layouts.
+    /// Matches by directory name first, then by metadata <c>name</c> field as a fallback.</summary>
     public string? FindSkillPath(string registryUrl, string skillName, bool refresh = true)
     {
         var cacheDir = refresh ? EnsureCache(registryUrl) : GetCachePath(registryUrl);
-        var candidate = Path.Combine(cacheDir, "skills", skillName);
-        return Directory.Exists(candidate) ? candidate : null;
+        var skillsRoot = Path.Combine(cacheDir, "skills");
+
+        // Fast path: check the flat location first
+        var flat = Path.Combine(skillsRoot, skillName);
+        if (Directory.Exists(flat))
+            return flat;
+
+        if (!Directory.Exists(skillsRoot))
+            return null;
+
+        // Search by directory leaf name
+        string? metadataMatch = null;
+        foreach (var dir in EnumerateSkillDirectories(skillsRoot))
+        {
+            if (string.Equals(Path.GetFileName(dir), skillName, StringComparison.OrdinalIgnoreCase))
+                return dir;
+
+            // Fallback: check metadata name field (may differ from directory name)
+            if (metadataMatch is null)
+            {
+                var metaName = ReadSkillMetadataName(dir);
+                if (metaName is not null && string.Equals(metaName, skillName, StringComparison.OrdinalIgnoreCase))
+                    metadataMatch = dir;
+            }
+        }
+
+        return metadataMatch;
     }
 
-    /// <summary>Scans the cached registry and returns metadata for all available skills.</summary>
+    /// <summary>Builds a map from skill metadata name to its directory path.
+    /// Used for batch operations to avoid repeated directory scans.</summary>
+    public Dictionary<string, string> BuildSkillPathIndex(string registryUrl, bool refresh = true)
+    {
+        var cacheDir = refresh ? EnsureCache(registryUrl) : GetCachePath(registryUrl);
+        var skillsRoot = Path.Combine(cacheDir, "skills");
+        var index = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        if (!Directory.Exists(skillsRoot))
+            return index;
+
+        foreach (var dir in EnumerateSkillDirectories(skillsRoot))
+        {
+            // Index by directory leaf name
+            var leafName = Path.GetFileName(dir);
+            index.TryAdd(leafName, dir);
+
+            // Also index by metadata name if it differs
+            var metaName = ReadSkillMetadataName(dir);
+            if (metaName is not null && !string.Equals(metaName, leafName, StringComparison.OrdinalIgnoreCase))
+                index.TryAdd(metaName, dir);
+        }
+
+        return index;
+    }
+
+    /// <summary>Scans the cached registry and returns metadata for all available skills.
+    /// Supports both flat (<c>skills/name</c>) and nested (<c>skills/category/name</c>) layouts.
+    /// Skills are identified by leaf directory name; duplicates are skipped.</summary>
     public IReadOnlyList<SkillMetadata> ListAvailableSkills(string registryUrl, bool refresh = true)
     {
         var cacheDir = refresh ? EnsureCache(registryUrl) : GetCachePath(registryUrl);
@@ -52,7 +107,9 @@ public sealed class RegistryService(GitService git)
             return [];
 
         var results = new List<SkillMetadata>();
-        foreach (var dir in Directory.EnumerateDirectories(skillsRoot))
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var dir in EnumerateSkillDirectories(skillsRoot))
         {
             var skillMd = SkillFileConvention.ResolveEntryPath(dir);
             if (skillMd is not null)
@@ -60,6 +117,8 @@ public sealed class RegistryService(GitService git)
                 try
                 {
                     var meta = SimpleYamlParser.ParseSkillMetadataFromMarkdown(File.ReadAllText(skillMd));
+                    if (!seen.Add(meta.Name))
+                        continue; // duplicate name — first-found wins
                     results.Add(meta);
                     continue;
                 }
@@ -74,6 +133,8 @@ public sealed class RegistryService(GitService git)
             try
             {
                 var meta = SimpleYamlParser.ParseSkillMetadata(File.ReadAllText(metaFile));
+                if (!seen.Add(meta.Name))
+                    continue;
                 results.Add(meta);
             }
             catch (InvalidDataException)
@@ -346,6 +407,57 @@ public sealed class RegistryService(GitService git)
 
     internal static string BuildPolicyUpdateBranchName(RegistryPolicy currentPolicy) =>
         $"{currentPolicy.PrBranchPrefix}registry-policy-{DateTime.UtcNow:yyyyMMddHHmmss}";
+
+    /// <summary>
+    /// Recursively enumerates all directories under <paramref name="skillsRoot"/> that contain
+    /// a skill entry file (<c>SKILL.md</c>, <c>skill.md</c>, or <c>metadata.yaml</c>).
+    /// Directories are yielded depth-first; flat (top-level) skills appear before nested ones.
+    /// </summary>
+    internal static IEnumerable<string> EnumerateSkillDirectories(string skillsRoot)
+    {
+        if (!Directory.Exists(skillsRoot))
+            yield break;
+
+        foreach (var dir in Directory.EnumerateDirectories(skillsRoot))
+        {
+            if (IsSkillDirectory(dir))
+                yield return dir;
+            else
+            {
+                // Recurse into subdirectories that are not themselves skills (category folders)
+                foreach (var nested in EnumerateSkillDirectories(dir))
+                    yield return nested;
+            }
+        }
+    }
+
+    private static bool IsSkillDirectory(string directory) =>
+        SkillFileConvention.ResolveEntryPath(directory) is not null
+        || File.Exists(Path.Combine(directory, "metadata.yaml"));
+
+    /// <summary>Reads the <c>name</c> field from a skill's metadata. Returns null on any failure.</summary>
+    private static string? ReadSkillMetadataName(string skillDirectory)
+    {
+        try
+        {
+            var entryPath = SkillFileConvention.ResolveEntryPath(skillDirectory);
+            if (entryPath is not null)
+            {
+                var meta = SimpleYamlParser.ParseSkillMetadataFromMarkdown(File.ReadAllText(entryPath));
+                return string.IsNullOrWhiteSpace(meta.Name) ? null : meta.Name;
+            }
+
+            var metaFile = Path.Combine(skillDirectory, "metadata.yaml");
+            if (File.Exists(metaFile))
+            {
+                var meta = SimpleYamlParser.ParseSkillMetadata(File.ReadAllText(metaFile));
+                return string.IsNullOrWhiteSpace(meta.Name) ? null : meta.Name;
+            }
+        }
+        catch { /* best-effort */ }
+
+        return null;
+    }
 
     private static string UrlToSlug(string url)
     {

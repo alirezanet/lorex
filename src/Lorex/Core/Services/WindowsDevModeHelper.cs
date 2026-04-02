@@ -70,6 +70,65 @@ internal static class WindowsDevModeHelper
         }
     }
 
+    /// <summary>
+    /// Checks if symlinks are available. If not (Windows without Developer Mode and not elevated),
+    /// offers to re-launch the current command as Administrator via UAC.
+    /// Returns true if the caller should continue (symlinks available or already elevated).
+    /// Returns false if an elevated process was launched (caller should exit with code 0).
+    /// Throws if the user declines elevation.
+    /// </summary>
+    public static bool EnsureSymlinkOrElevate()
+    {
+        if (IsSymlinkAvailable())
+            return true;
+
+        if (!OperatingSystem.IsWindows())
+            return true;
+
+        AnsiConsole.MarkupLine("[yellow bold]Symlinks are required but not available.[/]");
+        AnsiConsole.MarkupLine("[dim]Windows requires Administrator privileges or Developer Mode to create symlinks.[/]");
+        AnsiConsole.WriteLine();
+
+        var elevate = AnsiConsole.Confirm("[bold]Re-run this command as Administrator?[/]", defaultValue: true);
+        if (!elevate)
+        {
+            PrintDevModeGuidance();
+            throw new OperationCanceledException("Symlinks are required. Enable Developer Mode or run as Administrator.");
+        }
+
+        RelaunchElevated();
+        return false;
+    }
+
+    /// <summary>
+    /// Re-launches the current process with Administrator privileges via UAC.
+    /// The current process should exit after calling this.
+    /// </summary>
+    private static void RelaunchElevated()
+    {
+        var exePath = Environment.ProcessPath
+            ?? throw new InvalidOperationException("Cannot determine the current executable path.");
+
+        var arguments = string.Join(' ', Environment.GetCommandLineArgs().Skip(1));
+
+        try
+        {
+            var psi = new ProcessStartInfo(exePath, arguments)
+            {
+                UseShellExecute = true,
+                Verb = "runas",
+            };
+
+            var process = Process.Start(psi);
+            process?.WaitForExit();
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            // User declined UAC prompt
+            throw new OperationCanceledException("Administrator privileges are required for symlinks. Operation cancelled.");
+        }
+    }
+
     // ── internals ─────────────────────────────────────────────────────────────
 
     private static bool IsDevModeEnabled()

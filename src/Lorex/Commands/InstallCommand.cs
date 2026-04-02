@@ -10,6 +10,7 @@ public static class InstallCommand
 {
     private const string AllFlag = "--all";
     private const string RecommendedFlag = "--recommended";
+    private const string GlobalFlag = "--global";
     private const string PromptInstallRecommended = "Install recommended skills";
     private const string PromptInstallAll = "Install all available skills";
     private const string PromptChooseSpecific = "Choose specific skills";
@@ -17,7 +18,17 @@ public static class InstallCommand
     /// <summary>Runs the command. Returns 0 on success, 1 on failure.</summary>
     public static int Run(string[] args)
     {
-        var projectRoot = ProjectRootLocator.ResolveForExistingProject(Directory.GetCurrentDirectory());
+        var isGlobal = WantsGlobal(args);
+
+        if (isGlobal && OperatingSystem.IsWindows() && !WindowsDevModeHelper.IsSymlinkAvailable())
+        {
+            if (!WindowsDevModeHelper.EnsureSymlinkOrElevate())
+                return 0; // elevated process was launched
+        }
+
+        var projectRoot = isGlobal
+            ? GlobalRootLocator.ResolveForExistingGlobal()
+            : ProjectRootLocator.ResolveForExistingProject(Directory.GetCurrentDirectory());
 
         try
         {
@@ -85,16 +96,12 @@ public static class InstallCommand
             AnsiConsole.Status()
                 .Start("Installing skills...", ctx =>
                 {
-                    foreach (var skillName in approvedSkills)
-                    {
-                        ctx.Status($"Installing [bold]{skillName}[/]...");
-                        ServiceFactory.Skills.InstallSkill(
-                            projectRoot,
-                            skillName,
-                            overwriteLocalSkill: ServiceFactory.Skills.RequiresOverwriteApproval(projectRoot, skillName));
-                    }
-
                     ctx.Spinner(Spinner.Known.Dots);
+                    ServiceFactory.Skills.InstallSkillsBatch(
+                        projectRoot,
+                        approvedSkills,
+                        shouldOverwrite: skillName => ServiceFactory.Skills.RequiresOverwriteApproval(projectRoot, skillName));
+
                     ctx.Status("Projecting skills into native agent locations...");
                     var config = ServiceFactory.Skills.ReadConfig(projectRoot);
                     ServiceFactory.Adapters.Project(projectRoot, config);
@@ -128,12 +135,16 @@ public static class InstallCommand
     internal static bool WantsRecommended(string[] args) =>
         args.Any(a => string.Equals(a, RecommendedFlag, StringComparison.OrdinalIgnoreCase));
 
+    internal static bool WantsGlobal(string[] args) =>
+        args.Any(a => string.Equals(a, GlobalFlag, StringComparison.OrdinalIgnoreCase));
+
     internal static List<string> ParseSkillNames(string[] args) =>
         [.. args
             .Where(a =>
                 !string.IsNullOrWhiteSpace(a)
                 && !string.Equals(a, AllFlag, StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(a, RecommendedFlag, StringComparison.OrdinalIgnoreCase))
+                && !string.Equals(a, RecommendedFlag, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(a, GlobalFlag, StringComparison.OrdinalIgnoreCase))
             .Distinct(StringComparer.OrdinalIgnoreCase)];
 
     private static List<string> PromptForSkills(string projectRoot, LorexConfig cfg)

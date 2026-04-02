@@ -24,6 +24,24 @@ public sealed class CommandArgumentTests
     }
 
     [Fact]
+    public void InstallCommand_ParseSkillNames_FiltersGlobalFlag()
+    {
+        var parsed = InstallCommand.ParseSkillNames(["auth", "--global", "api"]);
+
+        Assert.Equal(["auth", "api"], parsed);
+    }
+
+    [Fact]
+    public void InstallCommand_WantsGlobal_DetectsGlobalFlag()
+    {
+        Assert.True(InstallCommand.WantsGlobal(["--global"]));
+        Assert.True(InstallCommand.WantsGlobal(["--all", "--global"]));
+        Assert.True(InstallCommand.WantsGlobal(["auth", "--global"]));
+        Assert.False(InstallCommand.WantsGlobal(["--all"]));
+        Assert.False(InstallCommand.WantsGlobal([]));
+    }
+
+    [Fact]
     public void RegistrySkillQueryService_GetInstallableSkillNames_ExcludesAlreadyInstalledSkills()
     {
         var config = new LorexConfig
