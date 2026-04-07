@@ -46,32 +46,36 @@ public sealed class SkillService(RegistryService registry)
 
     // ── Global config ─────────────────────────────────────────────────────────
 
-    private static readonly string GlobalConfigPath =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".lorex", "config.json");
+    private static string GetGlobalConfigPath(string? homeRoot) =>
+        Path.Combine(
+            homeRoot ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ".lorex", "config.json");
 
-    public GlobalConfig ReadGlobalConfig()
+    public GlobalConfig ReadGlobalConfig(string? homeRoot = null)
     {
-        if (!File.Exists(GlobalConfigPath)) return new GlobalConfig();
+        var path = GetGlobalConfigPath(homeRoot);
+        if (!File.Exists(path)) return new GlobalConfig();
         try
         {
-            var json = File.ReadAllText(GlobalConfigPath);
+            var json = File.ReadAllText(path);
             var config = JsonSerializer.Deserialize(json, LorexJsonContext.Default.GlobalConfig) ?? new GlobalConfig();
             return config with { Registries = config.Registries ?? [] };
         }
         catch { return new GlobalConfig(); }
     }
 
-    public void SaveGlobalRegistry(string registryUrl)
+    public void SaveGlobalRegistry(string registryUrl, string? homeRoot = null)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(GlobalConfigPath)!);
-        var existing = ReadGlobalConfig().Registries;
+        var path = GetGlobalConfigPath(homeRoot);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        var existing = ReadGlobalConfig(homeRoot).Registries;
         // Upsert: move to front (MRU), deduplicate, keep up to 20 entries
         var updated = new[] { registryUrl }
             .Concat(existing.Where(r => !r.Equals(registryUrl, StringComparison.OrdinalIgnoreCase)))
             .Take(20)
             .ToArray();
         var config = new GlobalConfig { Registries = updated };
-        File.WriteAllText(GlobalConfigPath, JsonSerializer.Serialize(config, LorexJsonContext.Default.GlobalConfig));
+        File.WriteAllText(path, JsonSerializer.Serialize(config, LorexJsonContext.Default.GlobalConfig));
     }
 
     public LorexConfig RefreshRegistryPolicy(string projectRoot, bool refreshRegistry = true, bool forceRefresh = false)

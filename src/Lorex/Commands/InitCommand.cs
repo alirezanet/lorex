@@ -101,7 +101,7 @@ public static class InitCommand
         }
         else
         {
-            registryUrl = PromptForRegistryInteractive();
+            registryUrl = PromptForRegistryInteractive(homeRoot);
             if (registryUrl is not null)
                 registryPolicy = ResolveRegistryPolicyInteractive(registryUrl);
         }
@@ -162,7 +162,7 @@ public static class InitCommand
 
         ServiceFactory.Skills.WriteConfig(projectRoot, config);
         if (registryUrl is not null)
-            ServiceFactory.Skills.SaveGlobalRegistry(registryUrl);
+            ServiceFactory.Skills.SaveGlobalRegistry(registryUrl, homeRoot);
 
         // ── Install built-in skills (bundled in the binary) ───────────────────
         var builtIns = BuiltInSkillService.InstallAll(projectRoot, config);
@@ -328,11 +328,11 @@ FinishInit:
         return detected.Count > 0 ? detected : ["copilot", "codex"];
     }
 
-    private static string? PromptForRegistryInteractive()
+    private static string? PromptForRegistryInteractive(string? homeRoot = null)
     {
         while (true)
         {
-            var knownRegistries = ServiceFactory.Skills.ReadGlobalConfig().Registries;
+            var knownRegistries = ServiceFactory.Skills.ReadGlobalConfig(homeRoot).Registries;
 
             var selected = AnsiConsole.Prompt(
                 new SelectionPrompt<string>()
