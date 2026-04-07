@@ -9,7 +9,6 @@ public static class UninstallCommand
 {
     private const string AllFlag    = "--all";
     private const string GlobalFlag = "--global";
-    private const string SelectAllItem = "* Select All";
 
     /// <summary>Runs the command. Returns 0 on success, 1 on failure.</summary>
     public static int Run(string[] args, string? cwd = null, string? homeRoot = null)
@@ -41,7 +40,7 @@ public static class UninstallCommand
             }
             else if (requestedSkills.Count == 0)
             {
-                requestedSkills = PromptForSkills(config);
+                requestedSkills = PromptForSkills(projectRoot, config);
             }
 
             if (requestedSkills.Count == 0)
@@ -96,7 +95,7 @@ public static class UninstallCommand
     internal static List<string> GetInstalledSkillNames(Core.Models.LorexConfig config) =>
         [.. config.InstalledSkills.OrderBy(name => name, StringComparer.OrdinalIgnoreCase)];
 
-    private static List<string> PromptForSkills(Core.Models.LorexConfig config)
+    private static List<string> PromptForSkills(string projectRoot, Core.Models.LorexConfig config)
     {
         var installedSkills = GetInstalledSkillNames(config);
         if (installedSkills.Count == 0)
@@ -105,13 +104,7 @@ public static class UninstallCommand
             return [];
         }
 
-        var selected = AnsiConsole.Prompt(
-            new MultiSelectionPrompt<string>()
-                .Title("[bold]Which skills do you want to uninstall?[/]")
-                .InstructionsText("[dim](Space to select, Enter to confirm)[/]")
-                .AddChoices([SelectAllItem, .. installedSkills]));
-
-        // If the sentinel was checked, return everything
-        return selected.Contains(SelectAllItem) ? installedSkills : [.. selected];
+        var metadata = SkillPickerTui.ReadInstalledMetadata(projectRoot, installedSkills);
+        return SkillPickerTui.Run(metadata, [], title: "Uninstall Skills");
     }
 }

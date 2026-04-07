@@ -44,11 +44,8 @@ public static class PublishCommand
                 return 1;
             }
 
-            toPublish = AnsiConsole.Prompt(
-                new MultiSelectionPrompt<string>()
-                    .Title("[bold]Which local skills do you want to publish?[/]")
-                    .InstructionsText("[dim](Space to select, Enter to confirm)[/]")
-                    .AddChoices(local));
+            var metadata = SkillPickerTui.ReadInstalledMetadata(projectRoot, local);
+            toPublish = SkillPickerTui.Run(metadata, [], title: "Publish Skills");
 
             if (toPublish.Count == 0)
             {

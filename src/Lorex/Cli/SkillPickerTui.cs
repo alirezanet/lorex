@@ -1,4 +1,6 @@
 using Lorex.Core.Models;
+using Lorex.Core.Serialization;
+using Lorex.Core.Services;
 
 namespace Lorex.Cli;
 
@@ -43,7 +45,8 @@ internal static class SkillPickerTui
         HashSet<string>              recommendedSet,
         Dictionary<string, string>?  skillSources  = null,
         string?                      initialSearch = null,
-        string?                      tagFilter     = null)
+        string?                      tagFilter     = null,
+        string                       title         = "Install Skills")
     {
         if (Console.IsInputRedirected)
             return [];
@@ -58,7 +61,7 @@ internal static class SkillPickerTui
             while (!state.Confirmed && !state.Cancelled)
             {
                 var (filtered, pageItems, totalPages) = ComputePage(choices, state, tagFilter, recommendedSet, skillSources);
-                Render(state, filtered, pageItems, totalPages, recommendedSet, skillSources, tagFilter, width, ref lastLines);
+                Render(state, filtered, pageItems, totalPages, recommendedSet, skillSources, tagFilter, title, width, ref lastLines);
 
                 ConsoleKeyInfo key;
                 try   { key = Console.ReadKey(intercept: true); }
@@ -216,6 +219,7 @@ internal static class SkillPickerTui
         HashSet<string>             recommendedSet,
         Dictionary<string, string>? skillSources,
         string?                     tagFilter,
+        string                      title,
         int                         width,
         ref int                     lastLines)
     {
@@ -240,7 +244,7 @@ internal static class SkillPickerTui
 
         // ── Header ───────────────────────────────────────────────────────────
         var tapHint = hasTapSkills ? $" {Dim}· Tab taps{Rst}" : "";
-        Line($"{Bold}Install Skills{Rst}  {Dim}↑↓ navigate · Space select · Ctrl+A all · Enter confirm · Esc cancel{Rst}{tapHint}");
+        Line($"{Bold}{Esc(title)}{Rst}  {Dim}↑↓ navigate · Space select · Ctrl+A all · Enter confirm · Esc cancel{Rst}{tapHint}");
 
         // ── Search bar ───────────────────────────────────────────────────────
         var hint = state.Search.Length == 0 ? $"{Dim}type to filter…{Rst}" : "";
@@ -360,6 +364,23 @@ internal static class SkillPickerTui
         sources != null &&
         sources.TryGetValue(name, out var src) &&
         src.StartsWith("tap:", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Reads <see cref="SkillMetadata"/> from disk for each installed skill name.
+    /// Falls back to a minimal metadata record (name only) when the file is missing or unreadable.
+    /// </summary>
+    internal static List<SkillMetadata> ReadInstalledMetadata(string projectRoot, IEnumerable<string> skillNames)
+    {
+        var skillsDir = Path.Combine(projectRoot, ".lorex", "skills");
+        return skillNames.Select(name =>
+        {
+            var dir  = Path.Combine(skillsDir, name);
+            var path = SkillFileConvention.ResolveEntryPath(dir);
+            if (path is null) return new SkillMetadata { Name = name, Description = "" };
+            try   { return SimpleYamlParser.ParseSkillMetadataFromMarkdown(File.ReadAllText(path)); }
+            catch { return new SkillMetadata { Name = name, Description = "" }; }
+        }).ToList();
+    }
 
     private static int SafeWidth()
     {
