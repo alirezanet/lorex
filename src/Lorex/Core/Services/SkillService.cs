@@ -48,7 +48,9 @@ public sealed class SkillService(RegistryService registry)
 
     private static string GetGlobalConfigPath(string? homeRoot) =>
         Path.Combine(
-            homeRoot ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            homeRoot
+            ?? Environment.GetEnvironmentVariable("LOREX_HOME_OVERRIDE")
+            ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             ".lorex", "config.json");
 
     public GlobalConfig ReadGlobalConfig(string? homeRoot = null)

@@ -12,8 +12,11 @@ public sealed class TapService(GitService git)
     private const string SyncTimestampFileName = ".lorex-tap-synced-at";
     private static readonly TimeSpan DefaultCacheTtl = TimeSpan.FromHours(1);
 
-    private static readonly string TapCacheRoot =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".lorex", "taps");
+    private static string LorexHome =>
+        Environment.GetEnvironmentVariable("LOREX_HOME_OVERRIDE")
+        ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+    private static string TapCacheRoot => Path.Combine(LorexHome, ".lorex", "taps");
 
     // ── Add ───────────────────────────────────────────────────────────────────
 

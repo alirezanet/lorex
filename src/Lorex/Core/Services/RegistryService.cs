@@ -14,11 +14,12 @@ public sealed class RegistryService(GitService git)
     private const string SkillIndexFileName = ".lorex-skill-index.json";
     private static readonly TimeSpan DefaultCacheTtl = TimeSpan.FromHours(1);
 
-    private static readonly string CacheRoot =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".lorex", "cache");
+    private static string LorexHome =>
+        Environment.GetEnvironmentVariable("LOREX_HOME_OVERRIDE")
+        ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
-    private static readonly string WorktreeRoot =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".lorex", "worktrees");
+    private static string CacheRoot    => Path.Combine(LorexHome, ".lorex", "cache");
+    private static string WorktreeRoot => Path.Combine(LorexHome, ".lorex", "worktrees");
 
     /// <summary>
     /// Returns the local cache path for a registry URL, cloning or syncing as needed.

@@ -12,7 +12,6 @@ namespace Lorex.Tests.Integration;
 internal sealed class LorexTestHarness : IDisposable
 {
     private readonly string _tempDir;
-    private readonly List<string> _registryCachePaths = [];
 
     /// <summary>Isolated project root (equivalent to the current working directory in real usage).</summary>
     public string ProjectRoot { get; }
@@ -27,6 +26,9 @@ internal sealed class LorexTestHarness : IDisposable
         GlobalRoot  = Path.Combine(_tempDir, "global");
         Directory.CreateDirectory(ProjectRoot);
         Directory.CreateDirectory(GlobalRoot);
+        // Redirect all lorex home operations (~/.lorex/cache, ~/.lorex/taps, ~/.lorex/config.json)
+        // to the isolated GlobalRoot so tests never touch the real user home directory.
+        Environment.SetEnvironmentVariable("LOREX_HOME_OVERRIDE", GlobalRoot);
     }
 
     // ── Command runners ──────────────────────────────────────────────────────
@@ -116,9 +118,6 @@ internal sealed class LorexTestHarness : IDisposable
 
         git.Run(repoDir, "add", "-A");
         git.Run(repoDir, "commit", "-m", "init registry");
-
-        // Track cache path so Dispose can clean it up
-        _registryCachePaths.Add(ServiceFactory.Registry.GetCachePath(repoDir));
 
         return repoDir;
     }
@@ -225,17 +224,12 @@ internal sealed class LorexTestHarness : IDisposable
 
     public void Dispose()
     {
+        Environment.SetEnvironmentVariable("LOREX_HOME_OVERRIDE", null);
+
         if (Directory.Exists(_tempDir))
         {
             try { Directory.Delete(_tempDir, recursive: true); }
             catch { /* best-effort; locked files (e.g. git index) can occasionally block deletion */ }
-        }
-
-        // Clean up registry caches created in ~/.lorex/cache/ during this test run
-        foreach (var cacheDir in _registryCachePaths)
-        {
-            if (Directory.Exists(cacheDir))
-                try { Directory.Delete(cacheDir, recursive: true); } catch { }
         }
     }
 
