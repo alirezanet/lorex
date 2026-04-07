@@ -13,15 +13,15 @@ public static class UninstallCommand
     private const string PromptChooseSpecific = "Choose specific skills";
 
     /// <summary>Runs the command. Returns 0 on success, 1 on failure.</summary>
-    public static int Run(string[] args)
+    public static int Run(string[] args, string? cwd = null, string? homeRoot = null)
     {
         var isGlobal = args.Any(a =>
             string.Equals(a, GlobalFlag, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(a, "-g",       StringComparison.OrdinalIgnoreCase));
 
         var projectRoot = isGlobal
-            ? GlobalRootLocator.ResolveForExistingGlobal()
-            : ProjectRootLocator.ResolveForExistingProject(Directory.GetCurrentDirectory());
+            ? GlobalRootLocator.ResolveForExistingGlobal(homeRoot)
+            : ProjectRootLocator.ResolveForExistingProject(cwd ?? Directory.GetCurrentDirectory());
 
         try
         {

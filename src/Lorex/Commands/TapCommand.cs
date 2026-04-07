@@ -8,17 +8,17 @@ namespace Lorex.Commands;
 public static class TapCommand
 {
     /// <summary>Runs the command. Returns 0 on success, 1 on failure.</summary>
-    public static int Run(string[] args)
+    public static int Run(string[] args, string? cwd = null, string? homeRoot = null)
     {
         var sub = args.Length > 0 ? args[0] : "--help";
         var rest = args.Length > 1 ? args[1..] : [];
 
         return sub switch
         {
-            "add"             => Add(rest),
-            "remove"          => Remove(rest),
-            "list"            => List(rest),
-            "sync"            => Sync(rest),
+            "add"             => Add(rest, cwd, homeRoot),
+            "remove"          => Remove(rest, cwd, homeRoot),
+            "list"            => List(rest, cwd, homeRoot),
+            "sync"            => Sync(rest, cwd, homeRoot),
             "--help" or "-h"  => PrintHelp(),
             _                 => UnknownSubcommand(sub),
         };
@@ -26,7 +26,7 @@ public static class TapCommand
 
     // ── lorex tap add <url> [--name <name>] [--root <path>] [--global] ───────
 
-    private static int Add(string[] args)
+    private static int Add(string[] args, string? cwd, string? homeRoot)
     {
         var isGlobal = WantsGlobal(args);
         var url = args.FirstOrDefault(a => !a.StartsWith("-", StringComparison.Ordinal));
@@ -40,8 +40,8 @@ public static class TapCommand
         var root = ArgParser.FlagValue(args, "--root");
 
         var projectRoot = isGlobal
-            ? GlobalRootLocator.ResolveForExistingGlobal()
-            : ProjectRootLocator.ResolveForExistingProject(Directory.GetCurrentDirectory());
+            ? GlobalRootLocator.ResolveForExistingGlobal(homeRoot)
+            : ProjectRootLocator.ResolveForExistingProject(cwd ?? Directory.GetCurrentDirectory());
 
         try
         {
@@ -68,7 +68,7 @@ public static class TapCommand
 
     // ── lorex tap remove <name> [--global] ───────────────────────────────────
 
-    private static int Remove(string[] args)
+    private static int Remove(string[] args, string? cwd, string? homeRoot)
     {
         var isGlobal = WantsGlobal(args);
         var name = args.FirstOrDefault(a => !a.StartsWith("-", StringComparison.Ordinal));
@@ -79,8 +79,8 @@ public static class TapCommand
         }
 
         var projectRoot = isGlobal
-            ? GlobalRootLocator.ResolveForExistingGlobal()
-            : ProjectRootLocator.ResolveForExistingProject(Directory.GetCurrentDirectory());
+            ? GlobalRootLocator.ResolveForExistingGlobal(homeRoot)
+            : ProjectRootLocator.ResolveForExistingProject(cwd ?? Directory.GetCurrentDirectory());
 
         try
         {
@@ -98,12 +98,12 @@ public static class TapCommand
 
     // ── lorex tap list [--global] ─────────────────────────────────────────────
 
-    private static int List(string[] args)
+    private static int List(string[] args, string? cwd, string? homeRoot)
     {
         var isGlobal = WantsGlobal(args);
         var projectRoot = isGlobal
-            ? GlobalRootLocator.ResolveForExistingGlobal()
-            : ProjectRootLocator.ResolveForExistingProject(Directory.GetCurrentDirectory());
+            ? GlobalRootLocator.ResolveForExistingGlobal(homeRoot)
+            : ProjectRootLocator.ResolveForExistingProject(cwd ?? Directory.GetCurrentDirectory());
 
         try
         {
@@ -148,13 +148,13 @@ public static class TapCommand
 
     // ── lorex tap sync [<name>] [--global] ───────────────────────────────────
 
-    private static int Sync(string[] args)
+    private static int Sync(string[] args, string? cwd, string? homeRoot)
     {
         var isGlobal = WantsGlobal(args);
         var tapName = args.FirstOrDefault(a => !a.StartsWith("-", StringComparison.Ordinal));
         var projectRoot = isGlobal
-            ? GlobalRootLocator.ResolveForExistingGlobal()
-            : ProjectRootLocator.ResolveForExistingProject(Directory.GetCurrentDirectory());
+            ? GlobalRootLocator.ResolveForExistingGlobal(homeRoot)
+            : ProjectRootLocator.ResolveForExistingProject(cwd ?? Directory.GetCurrentDirectory());
 
         try
         {

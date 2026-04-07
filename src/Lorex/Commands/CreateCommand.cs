@@ -13,9 +13,9 @@ public static class CreateCommand
     /// Interactive:     <c>lorex create</c>
     /// Legacy alias:    <c>lorex generate</c>
     /// </remarks>
-    public static int Run(string[] args)
+    public static int Run(string[] args, string? cwd = null)
     {
-        var projectRoot = ProjectRootLocator.ResolveForExistingProject(Directory.GetCurrentDirectory());
+        var projectRoot = ProjectRootLocator.ResolveForExistingProject(cwd ?? Directory.GetCurrentDirectory());
 
         // ── Parse flags ───────────────────────────────────────────────────────
         string? nameArg = null, descArg = null, tagsArg = null, ownerArg = null;

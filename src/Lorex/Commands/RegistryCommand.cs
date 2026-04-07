@@ -10,7 +10,7 @@ namespace Lorex.Commands;
 /// </summary>
 public static class RegistryCommand
 {
-    public static int Run(string[] args)
+    public static int Run(string[] args, string? cwd = null)
     {
         if (args.Length > 0 && args.Any(arg => arg is "--help" or "-h"))
             return PrintHelp();
@@ -22,7 +22,7 @@ public static class RegistryCommand
             return 1;
         }
 
-        var projectRoot = ProjectRootLocator.ResolveForExistingProject(Directory.GetCurrentDirectory());
+        var projectRoot = ProjectRootLocator.ResolveForExistingProject(cwd ?? Directory.GetCurrentDirectory());
 
         if (!RegistryCommandSupport.TryRefreshConfiguredRegistry(projectRoot, out LorexConfig config))
             return 1;

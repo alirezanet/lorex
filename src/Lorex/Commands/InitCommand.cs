@@ -20,7 +20,7 @@ public static class InitCommand
     /// Global (user-level) usage: <c>lorex init --global [&lt;url&gt;] [--adapters a,b]</c><br/>
     /// Interactive usage:     <c>lorex init</c> (guided setup for registry and adapters)
     /// </remarks>
-    public static int Run(string[] args)
+    public static int Run(string[] args, string? cwd = null, string? homeRoot = null)
     {
         var isGlobal = args.Any(a => string.Equals(a, GlobalFlag, StringComparison.OrdinalIgnoreCase));
 
@@ -31,8 +31,8 @@ public static class InitCommand
         }
 
         var projectRoot = isGlobal
-            ? GlobalRootLocator.GetGlobalRoot()
-            : ProjectRootLocator.ResolveForInit(Directory.GetCurrentDirectory());
+            ? (homeRoot ?? GlobalRootLocator.GetGlobalRoot())
+            : ProjectRootLocator.ResolveForInit(cwd ?? Directory.GetCurrentDirectory());
 
         // ── Parse flags ───────────────────────────────────────────────────────
         // Accept: lorex init <url> [--adapters a,b,c] [--global]

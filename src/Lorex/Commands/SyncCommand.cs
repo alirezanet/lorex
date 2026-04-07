@@ -10,7 +10,7 @@ public static class SyncCommand
     private const string GlobalFlag = "--global";
 
     /// <summary>Runs the command. Returns 0 on success, 1 on failure.</summary>
-    public static int Run(string[] args)
+    public static int Run(string[] args, string? cwd = null, string? homeRoot = null)
     {
         var isGlobal = args.Any(a =>
             string.Equals(a, GlobalFlag, StringComparison.OrdinalIgnoreCase) ||
@@ -23,8 +23,8 @@ public static class SyncCommand
         }
 
         var projectRoot = isGlobal
-            ? GlobalRootLocator.ResolveForExistingGlobal()
-            : ProjectRootLocator.ResolveForExistingProject(Directory.GetCurrentDirectory());
+            ? GlobalRootLocator.ResolveForExistingGlobal(homeRoot)
+            : ProjectRootLocator.ResolveForExistingProject(cwd ?? Directory.GetCurrentDirectory());
 
         try
         {

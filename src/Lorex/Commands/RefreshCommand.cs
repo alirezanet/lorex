@@ -11,7 +11,7 @@ namespace Lorex.Commands;
 public static class RefreshCommand
 {
     /// <summary>Runs the command. Returns 0 on success, 1 on failure.</summary>
-    public static int Run(string[] args)
+    public static int Run(string[] args, string? cwd = null)
     {
         // Parse optional --target <adapter>
         string? target = null;
@@ -24,7 +24,7 @@ public static class RefreshCommand
             }
         }
 
-        var projectRoot = ProjectRootLocator.ResolveForExistingProject(Directory.GetCurrentDirectory());
+        var projectRoot = ProjectRootLocator.ResolveForExistingProject(cwd ?? Directory.GetCurrentDirectory());
 
         try
         {

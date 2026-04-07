@@ -8,9 +8,9 @@ namespace Lorex.Commands;
 public static class PublishCommand
 {
     /// <summary>Runs the command. Returns 0 on success, 1 if any publish failed.</summary>
-    public static int Run(string[] args)
+    public static int Run(string[] args, string? cwd = null)
     {
-        var projectRoot = ProjectRootLocator.ResolveForExistingProject(Directory.GetCurrentDirectory());
+        var projectRoot = ProjectRootLocator.ResolveForExistingProject(cwd ?? Directory.GetCurrentDirectory());
         var builtIns = BuiltInSkillService.SkillNames().ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         if (!RegistryCommandSupport.TryRefreshConfiguredRegistry(projectRoot, out var config))
