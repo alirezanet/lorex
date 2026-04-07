@@ -630,6 +630,16 @@ public sealed class SkillService(RegistryService registry)
             var sourcePath = registry.FindSkillPath(config.Registry.Url, skillName, refresh: false);
             if (sourcePath is null) continue;
 
+            // Directory missing entirely (e.g. fresh clone — symlinks are gitignored).
+            // Nothing to overwrite, so no approval needed.
+            if (!Directory.Exists(linkPath))
+            {
+                InstallSkill(projectRoot, skillName, refreshRegistry: false);
+                updated.Add(skillName);
+                continue;
+            }
+
+            // Real local directory exists — only replace if the user approved the overwrite.
             if (!approved.Contains(skillName))
                 continue;
 

@@ -138,6 +138,12 @@ public static class InitCommand
         }
 
         // ── Write lorex.json ──────────────────────────────────────────────────
+        // Preserve installed skills, versions, sources, and taps from any existing config so that
+        // re-running lorex init (e.g. to change adapters) doesn't orphan previously installed skills
+        // and so that lorex sync can restore symlinks after a fresh clone.
+        LorexConfig? prior = null;
+        try { prior = ServiceFactory.Skills.ReadConfig(projectRoot); } catch { }
+
         var config = new LorexConfig
         {
             Registry = registryUrl is null
@@ -148,7 +154,10 @@ public static class InitCommand
                     Policy = registryPolicy ?? throw new InvalidOperationException("Registry policy is missing."),
                 },
             Adapters = [.. selectedAdapters],
-            InstalledSkills = [],
+            InstalledSkills        = prior?.InstalledSkills        ?? [],
+            InstalledSkillVersions = prior?.InstalledSkillVersions ?? new Dictionary<string, string>(),
+            InstalledSkillSources  = prior?.InstalledSkillSources  ?? new Dictionary<string, string>(),
+            Taps                   = prior?.Taps                   ?? [],
         };
 
         ServiceFactory.Skills.WriteConfig(projectRoot, config);
@@ -294,8 +303,13 @@ FinishInit:
             foreach (var s in builtIns)
                 AnsiConsole.MarkupLine("  [dim]•[/] {0}", s);
         }
+        var missingSkillCount = config.InstalledSkills
+            .Count(s => !Directory.Exists(ServiceFactory.Skills.SkillDir(projectRoot, s)));
+
         if (registryUrl is null)
             AnsiConsole.MarkupLine("[dim]Running in local-only mode. Ask your AI agent to create a skill for this project, or run [bold]lorex create[/] to scaffold one.[/]");
+        else if (missingSkillCount > 0)
+            AnsiConsole.MarkupLine("[dim][bold]{0}[/] installed skill(s) need restoring (registry/tap symlinks are not committed). Run [bold]lorex sync[/] to recreate them.[/]", missingSkillCount);
         else if (remainingRecommendedSkills.Count > 0)
             AnsiConsole.MarkupLine("[dim]This registry still has [bold]{0}[/] recommended skill(s) not installed in this project. Run [bold]lorex install --recommended[/] to add them, [bold]lorex list[/] to browse everything else, and [bold]lorex sync[/] later to refresh installed shared skills.[/]", remainingRecommendedSkills.Count);
         else if (remainingRegistrySkills.Count > 0)

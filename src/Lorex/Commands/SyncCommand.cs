@@ -120,11 +120,57 @@ public static class SyncCommand
                         syncedTaps = ServiceFactory.Taps.SyncAll(latestConfig);
                     });
 
-                if (syncedTaps.Count > 0)
-                    AnsiConsole.MarkupLine(
-                        $"[green]✓[/] Taps synced: {string.Join(", ", syncedTaps.Select(Markup.Escape))}");
-                else
-                    AnsiConsole.MarkupLine("[green]✓[/] All taps are up to date.");
+                AnsiConsole.MarkupLine(
+                    $"[green]✓[/] Taps synced: {string.Join(", ", syncedTaps.Select(Markup.Escape))}");
+
+                // ── Restore missing tap skill symlinks ────────────────────────
+                // After a fresh clone the tap caches now exist but the gitignored
+                // symlinks in .lorex/skills/ are gone. Recreate them.
+                latestConfig = ServiceFactory.Skills.ReadConfig(projectRoot);
+                var missingTapSkills = new Dictionary<string, (Core.Models.TapConfig Tap, string SourcePath)>(
+                    StringComparer.OrdinalIgnoreCase);
+
+                foreach (var skillName in latestConfig.InstalledSkills)
+                {
+                    if (Directory.Exists(ServiceFactory.Skills.SkillDir(projectRoot, skillName))) continue;
+
+                    if (!latestConfig.InstalledSkillSources.TryGetValue(skillName, out var src)) continue;
+                    if (!src.StartsWith("tap:", StringComparison.OrdinalIgnoreCase)) continue;
+
+                    var tapName   = src["tap:".Length..];
+                    var tap       = latestConfig.Taps.FirstOrDefault(t =>
+                        string.Equals(t.Name, tapName, StringComparison.OrdinalIgnoreCase));
+                    if (tap is null) continue;
+
+                    var sourcePath = ServiceFactory.Taps.FindSkillPath(tap, skillName);
+                    if (sourcePath is null) continue;
+
+                    missingTapSkills[skillName] = (tap, sourcePath);
+                }
+
+                if (missingTapSkills.Count > 0)
+                {
+                    IReadOnlyList<string> restored = [];
+                    AnsiConsole.Status()
+                        .Start("Restoring tap skills…", ctx =>
+                        {
+                            ctx.Spinner(Spinner.Known.Dots);
+                            restored = ServiceFactory.Skills.InstallTapSkillsBatch(projectRoot, missingTapSkills);
+
+                            if (restored.Count > 0)
+                            {
+                                ctx.Status("Projecting skills into native agent locations…");
+                                ServiceFactory.Adapters.Project(projectRoot, ServiceFactory.Skills.ReadConfig(projectRoot));
+                            }
+                        });
+
+                    if (restored.Count > 0)
+                    {
+                        AnsiConsole.MarkupLine("[green]✓[/] Restored [bold]{0}[/] tap skill(s):", restored.Count);
+                        foreach (var name in restored)
+                            AnsiConsole.MarkupLine("  • {0}", name);
+                    }
+                }
             }
 
             return 0;
