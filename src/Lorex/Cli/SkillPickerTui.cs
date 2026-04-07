@@ -64,7 +64,7 @@ internal static class SkillPickerTui
                 try   { key = Console.ReadKey(intercept: true); }
                 catch { state.Cancelled = true; break; }
 
-                HandleKey(key, state, pageItems, totalPages);
+                HandleKey(key, state, filtered, pageItems, totalPages);
             }
         }
         finally
@@ -128,7 +128,7 @@ internal static class SkillPickerTui
 
     // ── Key handling ─────────────────────────────────────────────────────────
 
-    private static void HandleKey(ConsoleKeyInfo key, State state, List<SkillMetadata> pageItems, int totalPages)
+    private static void HandleKey(ConsoleKeyInfo key, State state, List<SkillMetadata> filtered, List<SkillMetadata> pageItems, int totalPages)
     {
         switch (key.Key)
         {
@@ -172,6 +172,15 @@ internal static class SkillPickerTui
                 state.ShowTaps = !state.ShowTaps;
                 state.Page     = 0;
                 state.Cursor   = 0;
+                break;
+
+            case ConsoleKey.A when key.Modifiers.HasFlag(ConsoleModifiers.Control):
+                // Toggle all filtered (visible) skills — Ctrl+A selects all, second press deselects all
+                var allNames = filtered.Select(s => s.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                if (allNames.IsSubsetOf(state.Selected))
+                    foreach (var n in allNames) state.Selected.Remove(n);
+                else
+                    foreach (var n in allNames) state.Selected.Add(n);
                 break;
 
             case ConsoleKey.Escape:
@@ -231,7 +240,7 @@ internal static class SkillPickerTui
 
         // ── Header ───────────────────────────────────────────────────────────
         var tapHint = hasTapSkills ? $" {Dim}· Tab taps{Rst}" : "";
-        Line($"{Bold}Install Skills{Rst}  {Dim}↑↓ navigate · Space select · Enter confirm · Esc cancel{Rst}{tapHint}");
+        Line($"{Bold}Install Skills{Rst}  {Dim}↑↓ navigate · Space select · Ctrl+A all · Enter confirm · Esc cancel{Rst}{tapHint}");
 
         // ── Search bar ───────────────────────────────────────────────────────
         var hint = state.Search.Length == 0 ? $"{Dim}type to filter…{Rst}" : "";

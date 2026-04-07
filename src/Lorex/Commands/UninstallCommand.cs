@@ -9,8 +9,7 @@ public static class UninstallCommand
 {
     private const string AllFlag    = "--all";
     private const string GlobalFlag = "--global";
-    private const string PromptUninstallAll   = "Uninstall all installed skills";
-    private const string PromptChooseSpecific = "Choose specific skills";
+    private const string SelectAllItem = "[ Select All ]";
 
     /// <summary>Runs the command. Returns 0 on success, 1 on failure.</summary>
     public static int Run(string[] args, string? cwd = null, string? homeRoot = null)
@@ -106,18 +105,13 @@ public static class UninstallCommand
             return [];
         }
 
-        var selectionMode = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("[bold]How do you want to uninstall skills?[/]")
-                .AddChoices(PromptUninstallAll, PromptChooseSpecific));
-
-        if (string.Equals(selectionMode, PromptUninstallAll, StringComparison.Ordinal))
-            return installedSkills;
-
-        return AnsiConsole.Prompt(
+        var selected = AnsiConsole.Prompt(
             new MultiSelectionPrompt<string>()
                 .Title("[bold]Which skills do you want to uninstall?[/]")
                 .InstructionsText("[dim](Space to select, Enter to confirm)[/]")
-                .AddChoices(installedSkills));
+                .AddChoices([SelectAllItem, .. installedSkills]));
+
+        // If the sentinel was checked, return everything
+        return selected.Contains(SelectAllItem) ? installedSkills : [.. selected];
     }
 }

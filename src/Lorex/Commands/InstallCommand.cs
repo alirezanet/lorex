@@ -19,9 +19,6 @@ public static class InstallCommand
         arg.StartsWith("http://",  StringComparison.OrdinalIgnoreCase) ||
         arg.StartsWith("git@",     StringComparison.OrdinalIgnoreCase);
 
-    private const string PromptInstallRecommended = "Install recommended skills";
-    private const string PromptInstallAll         = "Install all available skills";
-    private const string PromptChooseSpecific     = "Choose specific skills";
 
     /// <summary>Runs the command. Returns 0 on success, 1 on failure.</summary>
     public static int Run(string[] args, string? cwd = null, string? homeRoot = null)
@@ -270,21 +267,6 @@ public static class InstallCommand
 
         var recommended    = ServiceFactory.RegistrySkills.GetRecommendedSkillNames(projectRoot, available, cfg);
         var recommendedSet = recommended.ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        var selectionMode = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("[bold]How do you want to install skills?[/]")
-                .AddChoices(recommended.Count > 0
-                    ? [PromptInstallRecommended, PromptInstallAll, PromptChooseSpecific]
-                    : [PromptInstallAll, PromptChooseSpecific]));
-
-        if (string.Equals(selectionMode, PromptInstallRecommended, StringComparison.Ordinal))
-            return (recommended, skillSources);
-
-        if (string.Equals(selectionMode, PromptInstallAll, StringComparison.Ordinal))
-            return ([.. choices.Select(skill => skill.Name)], skillSources);
-
-        // ── "Choose specific skills" — full TUI picker ───────────────────────
 
         var selected = SkillPickerTui.Run(choices, recommendedSet, skillSources, preSearch, preTag);
         return (selected, skillSources);
