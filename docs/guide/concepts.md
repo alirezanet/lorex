@@ -35,6 +35,21 @@ A registry has a **policy** (stored as `/.lorex-registry.json` in the registry r
 
 ---
 
+## Tap
+
+A **tap** is a read-only skill source — any public Git repository that contains skills. Unlike a registry, a tap has no publish policy and no manifest; Lorex simply clones it and lets you install skills from it.
+
+Taps are useful when you want to pull in a curated skill collection maintained by someone else (a framework team, an open-source project, a colleague's repo) without giving them write access to your own registry.
+
+```sh
+lorex tap add https://github.com/dotnet/skills --root plugins/
+lorex install   # tap skills appear alongside registry skills
+```
+
+Tap caches live at `~/.lorex/taps/<slug>/` and are shared across all projects on your machine. A registry can also declare `recommendedTaps` in its policy — Lorex surfaces these during `lorex init` and lets you choose which ones to add.
+
+---
+
 ## Adapter
 
 An **adapter** tells Lorex how to make your skills visible to a specific AI agent. Different agents look for knowledge in different places — Claude reads `.claude/skills/`, Cursor reads `.cursor/rules/`, Gemini reads from paths listed in `.gemini/settings.json`, and so on.
@@ -56,26 +71,30 @@ Because projections are derived, you should typically **gitignore them** and re-
 ## How the pieces fit together
 
 ```
+~/.lorex/taps/github.com_dotnet_skills/   ← shared tap cache (all projects)
+    csharp-scripts/SKILL.md
+    linq-patterns/SKILL.md
+
 Your project
 ├── .lorex/
-│   ├── lorex.json          ← config: registry URL, adapters, installed skills
+│   ├── lorex.json          ← config: registry URL, taps, adapters, installed skills
 │   └── skills/
 │       ├── auth-logic/
-│       │   └── SKILL.md    ← you write this once
-│       └── api-conventions/
-│           └── SKILL.md
+│       │   └── SKILL.md    ← local skill (you write this)
+│       ├── api-conventions/ → registry cache   ← registry symlink
+│       └── csharp-scripts/ → tap cache         ← tap symlink
 │
 ├── .claude/skills/
 │   ├── auth-logic  ──────────────────────────────┐  symlinks back to
-│   └── api-conventions  ──────────────────────┐  │  .lorex/skills/
-│                                               │  │
-├── .agents/skills/                             │  │
-│   ├── auth-logic  ──────────────────────────────┘  (same target)
-│   └── api-conventions  ──────────────────┘
-│
-└── .cursor/rules/
-    ├── lorex-auth-logic.mdc         ← generated rule file
-    └── lorex-api-conventions.mdc    ← generated rule file
+│   ├── api-conventions  ───────────────────────┐  │  .lorex/skills/
+│   └── csharp-scripts  ──────────────────────┐ │  │
+│                                              │ │  │
+└── .cursor/rules/                            │ │  │
+    ├── lorex-auth-logic.mdc                  │ │  │  ← generated rule files
+    ├── lorex-api-conventions.mdc  ───────────┘ │  │
+    └── lorex-csharp-scripts.mdc  ──────────────┘  │
+                                                    │
+                              (all point into .lorex/skills/)
 ```
 
-One source of truth. Every agent stays in sync.
+One source of truth. Every agent stays in sync — whether a skill came from your registry, a tap, or was authored locally.
