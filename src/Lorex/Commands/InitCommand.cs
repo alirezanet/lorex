@@ -22,6 +22,9 @@ public static class InitCommand
     /// </remarks>
     public static int Run(string[] args, string? cwd = null, string? homeRoot = null)
     {
+        if (args.Any(a => a is "--help" or "-h"))
+            return PrintHelp();
+
         var isGlobal = args.Any(a => string.Equals(a, GlobalFlag, StringComparison.OrdinalIgnoreCase));
 
         if (isGlobal && OperatingSystem.IsWindows() && !WindowsDevModeHelper.IsSymlinkAvailable())
@@ -326,6 +329,40 @@ FinishInit:
             .ToList();
 
         return detected.Count > 0 ? detected : ["copilot", "codex"];
+    }
+
+    private static int PrintHelp()
+    {
+        AnsiConsole.MarkupLine("[bold]USAGE[/]  lorex init [grey][[<url|path>]] [[--local]] [[--adapters <a,b,...>]] [[--global]][/]");
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[bold]DESCRIPTION[/]");
+        AnsiConsole.MarkupLine("  Configure lorex for this project (or globally with [bold]--global[/]).");
+        AnsiConsole.MarkupLine("  Running without arguments launches an interactive setup wizard.");
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[bold]OPTIONS[/]");
+        var grid = new Grid()
+            .AddColumn(new GridColumn().Width(30))
+            .AddColumn();
+        grid.AddRow("  [bold]<url|path>[/]",              "[dim]Registry URL (HTTPS/SSH) or local absolute path[/]");
+        grid.AddRow("  [bold]--local[/]",                 "[dim]Skip registry setup; manage skills locally[/]");
+        grid.AddRow("  [bold]--adapters[/] [grey]-a[/]",  "[dim]Comma-separated list of adapters to enable (e.g. claude,copilot)[/]");
+        grid.AddRow("  [bold]--global[/] [grey]-g[/]",    "[dim]Initialise the global lorex root (~/.lorex) instead of the project[/]");
+        grid.AddRow("  [bold]--help[/] [grey]-h[/]",      "[dim]Show this help[/]");
+        AnsiConsole.Write(grid);
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[bold]EXAMPLES[/]");
+        AnsiConsole.MarkupLine("  [dim]# Interactive setup[/]");
+        AnsiConsole.MarkupLine("  lorex init");
+        AnsiConsole.MarkupLine("  [dim]# Connect to a remote registry[/]");
+        AnsiConsole.MarkupLine("  lorex init https://github.com/org/skills --adapters claude,copilot");
+        AnsiConsole.MarkupLine("  [dim]# Use a local path as registry (monorepo, network share)[/]");
+        AnsiConsole.MarkupLine("  lorex init /path/to/registry --adapters claude");
+        AnsiConsole.MarkupLine("  [dim]# Local-only, no registry[/]");
+        AnsiConsole.MarkupLine("  lorex init --local --adapters claude");
+        AnsiConsole.MarkupLine("  [dim]# Global install[/]");
+        AnsiConsole.MarkupLine("  lorex init --global https://github.com/org/skills");
+        AnsiConsole.WriteLine();
+        return 0;
     }
 
     private static string? PromptForRegistryInteractive(string? homeRoot = null)
