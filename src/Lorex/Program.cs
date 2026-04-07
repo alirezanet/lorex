@@ -91,26 +91,26 @@ static int PrintHelp()
     {
         Row(g, "init",    "[[<url>]] [[--local]] [[--global]] [[--adapters a,b]]",  "Configure a registry and set up this project or global skills");
         Row(g, "create",  "[[<name>]] [[-d desc]] [[-t tags]] [[-o owner]]",   "Scaffold a new skill for AI/manual authoring");
-        Row(g, "status",  "",                                                   "Show installed skills and their state");
-        Row(g, "refresh", "[[--target adapter]]",                               "Re-project lorex skills into native agent locations");
-        Row(g, "install",   "[[<skill|url>…]] [[--all]] [[--recommended]] [[--search <text>]] [[--tag <tag>]] [[--global]]", "Install skills from registry, taps, or a URL");
-        Row(g, "uninstall", "[[<skill>…]] [[--all]]",                                                                        "Remove installed skills, or choose interactively");
+        Row(g, "status",    "[[-g|--global]]",                                   "Show installed skills and their state");
+        Row(g, "refresh",   "[[--target adapter]]",                             "Re-project lorex skills into native agent locations");
+        Row(g, "install",   "[[<skill|url>…]] [[--all]] [[--recommended]] [[--search <text>]] [[--tag <tag>]] [[-g|--global]]", "Install skills from registry, taps, or a URL");
+        Row(g, "uninstall", "[[<skill>…]] [[--all]] [[-g|--global]]",                                                          "Remove installed skills, or choose interactively");
     });
 
     Section("Registry", g =>
     {
-        Row(g, "list",      "[[--search <text>]] [[--tag <tag>]] [[--page <n>]] [[--page-size <n>]]",                        "Browse and filter skills available in the registry and taps");
-        Row(g, "sync",      "[[--global]]",                                                                                  "Pull latest skill versions from the registry and all taps");
+        Row(g, "list",      "[[--search <text>]] [[--tag <tag>]] [[--page <n>]] [[--page-size <n>]] [[-g|--global]]",       "Browse and filter skills available in the registry and taps");
+        Row(g, "sync",      "[[-g|--global]]",                                                                          "Pull latest skill versions from the registry and all taps");
         Row(g, "publish",   "[[<skill>…]]",                                                                                  "Push local skills to the registry");
         Row(g, "registry",  "",                                                                                               "Interactively configure the connected registry policy");
     });
 
     Section("Taps", g =>
     {
-        Row(g, "tap add",    "<url> [[--name <name>]] [[--root <path>]]", "Add a read-only skill source (any git repo)");
-        Row(g, "tap remove", "<name>",                                    "Remove a tap");
-        Row(g, "tap list",   "",                                          "List configured taps with skill counts");
-        Row(g, "tap sync",   "[[<name>]]",                                "Pull latest from all taps (or one)");
+        Row(g, "tap add",    "<url> [[--name <name>]] [[--root <path>]] [[-g|--global]]", "Add a read-only skill source (any git repo)");
+        Row(g, "tap remove", "<name> [[-g|--global]]",                                    "Remove a tap");
+        Row(g, "tap list",   "[[-g|--global]]",                                           "List configured taps with skill counts");
+        Row(g, "tap sync",   "[[<name>]] [[-g|--global]]",                                "Pull latest from all taps (or one)");
     });
 
     AnsiConsole.MarkupLine("[dim]Run [bold]lorex <command> --help[/] for command-specific help.[/]");

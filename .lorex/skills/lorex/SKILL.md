@@ -29,18 +29,18 @@ Lorex commands resolve the project root by walking up from the current working d
 |---|---|---|
 | `init` | `lorex init [<url>] [--local] [--global] [--adapters a,b]` | Set up lorex in a project (or globally with `--global`) and load or initialize the registry policy |
 | `create` | `lorex create [<name>] [-d desc] [-t tags] [-o owner]` | Scaffold a new local skill |
-| `install` | `lorex install [<skill\|url>…] [--all] [--recommended] [--search <text>] [--tag <tag>] [--global]` | Install skills from the registry, a tap, or directly from a URL |
-| `uninstall` | `lorex uninstall [<skill>…] [--all]` | Remove installed skills from this project |
-| `list` | `lorex list [--search <text>] [--tag <tag>] [--page <n>] [--page-size <n>]` | Browse and filter skills available in the registry and all taps |
-| `status` | `lorex status` | Show installed skills, registry state, and adapter targets |
-| `sync` | `lorex sync [--global]` | Pull the latest versions from the registry and all taps |
+| `install` | `lorex install [<skill\|url>…] [--all] [--recommended] [--search <text>] [--tag <tag>] [-g\|--global]` | Install skills from the registry, a tap, or directly from a URL |
+| `uninstall` | `lorex uninstall [<skill>…] [--all] [-g\|--global]` | Remove installed skills from this project or globally |
+| `list` | `lorex list [--search <text>] [--tag <tag>] [--page <n>] [--page-size <n>] [-g\|--global]` | Browse and filter skills available in the registry and all taps |
+| `status` | `lorex status [-g\|--global]` | Show installed skills, registry state, and adapter targets |
+| `sync` | `lorex sync [-g\|--global]` | Pull the latest versions from the registry and all taps. Skills deleted from the registry are removed automatically. |
 | `publish` | `lorex publish [<skill>…]` | Contribute local skills using the registry's publish policy |
 | `registry` | `lorex registry` | Interactively update the connected registry's publish policy |
 | `refresh` | `lorex refresh [--target adapter]` | Re-project skills into native agent locations after skill edits |
-| `tap add` | `lorex tap add <url> [--name <name>] [--root <path>]` | Add a read-only skill source (any git repo) |
-| `tap remove` | `lorex tap remove <name>` | Remove a tap |
-| `tap list` | `lorex tap list` | List configured taps with skill counts |
-| `tap sync` | `lorex tap sync [<name>]` | Pull the latest content from all taps or a specific one |
+| `tap add` | `lorex tap add <url> [--name <name>] [--root <path>] [-g\|--global]` | Add a read-only skill source (any git repo) |
+| `tap remove` | `lorex tap remove <name> [-g\|--global]` | Remove a tap |
+| `tap list` | `lorex tap list [-g\|--global]` | List configured taps with skill counts |
+| `tap sync` | `lorex tap sync [<name>] [-g\|--global]` | Pull the latest content from all taps or a specific one |
 
 `list`, `install`, `sync`, `publish`, and `registry` require a registry or at least one tap. `create`, `status`, and `refresh` work in local-only mode. Tap commands work independently of the primary registry.
 
@@ -68,6 +68,9 @@ lorex tap add https://github.com/dotnet/skills
 # With an explicit name and optional root subdirectory
 lorex tap add https://github.com/dotnet/skills --name dotnet --root skills/
 
+# Add a tap to the global config (available as a source across all projects)
+lorex tap add https://github.com/dotnet/skills --global
+
 # Skills from taps appear in lorex list and lorex install alongside registry skills
 lorex list
 lorex install
@@ -79,6 +82,10 @@ lorex sync                # also syncs all taps alongside the primary registry
 
 # Remove a tap (local cache is kept for other projects)
 lorex tap remove dotnet
+
+# Manage global taps
+lorex tap list --global
+lorex tap sync --global
 ```
 
 Tap caches live at `~/.lorex/taps/<slug>/` and are shared across all projects on the machine. Skills installed from taps are symlinked (like registry skills) so `lorex sync` keeps them current automatically.

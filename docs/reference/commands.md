@@ -206,10 +206,10 @@ lorex install --all --global
 
 ## `lorex uninstall`
 
-Remove installed skills from this project.
+Remove installed skills from this project (or globally with `--global`).
 
 ```bash
-lorex uninstall [<skill>...] [--all]
+lorex uninstall [<skill>...] [--all] [-g|--global]
 lorex uninstall                    # interactive picker
 ```
 
@@ -219,6 +219,7 @@ lorex uninstall                    # interactive picker
 | :--- | :--- |
 | `<skill>...` | One or more skill names to remove. |
 | `--all` | Remove every installed skill without prompting. |
+| `-g`, `--global` | Operate on the global lorex config (`~/.lorex/`) instead of the current project. |
 
 Running with no arguments opens a multi-select picker showing all installed skills.
 
@@ -236,7 +237,7 @@ Adapter projections for the removed skill are cleaned up on the next `lorex refr
 Browse and filter skills available in the registry and all configured taps.
 
 ```bash
-lorex list [--search <text>] [--tag <tag>] [--page <n>] [--page-size <n>]
+lorex list [--search <text>] [--tag <tag>] [--page <n>] [--page-size <n>] [-g|--global]
 lorex list                         # interactive TUI browser (when run in a terminal)
 ```
 
@@ -262,6 +263,7 @@ Pass `--page`, `--page-size`, or pipe the output to get the classic paginated ta
 | `--tag <tag>` | Filter skills with the exact tag `<tag>` (case-insensitive). Can be combined with `--search`. |
 | `--page <n>` | Page number to display (1-based, default: 1). Enables non-interactive table output. |
 | `--page-size <n>` | Skills per page (default: 25). Use `0` to disable pagination and show all results. Enables non-interactive table output. |
+| `-g`, `--global` | Browse skills available in the global lorex config (`~/.lorex/`) instead of the current project. |
 
 Table status values:
 - `installed` (green) — already in this project
@@ -290,10 +292,10 @@ lorex list | grep auth             # piped (table mode, no paging)
 
 ## `lorex status`
 
-Show the current state of this project: registry, adapters, and installed skills.
+Show the current state of this project: registry, adapters, and installed skills. Pass `--global` to view the global lorex context instead.
 
 ```bash
-lorex status
+lorex status [-g|--global]
 ```
 
 ### Output
@@ -321,6 +323,12 @@ Adapters:     claude, copilot, codex
 └─────────────────┴───────────┴─────────────────────────────────────┘
 ```
 
+### Flags
+
+| Flag | Description |
+| :--- | :--- |
+| `-g`, `--global` | Show the global lorex context (`~/.lorex/`) instead of the current project. |
+
 ### Link types
 
 | Type | Color | Meaning |
@@ -337,22 +345,33 @@ Adapters:     claude, copilot, codex
 Pull the latest skill content from the registry.
 
 ```bash
-lorex sync [--global]
+lorex sync [-g|--global]
 ```
 
 ### Flags
 
 | Flag | Description |
 | :--- | :--- |
-| `--global` | Sync global skills at `~/.lorex/skills/` instead of the current project. |
+| `-g`, `--global` | Sync global skills at `~/.lorex/` instead of the current project. |
 
 ### What it does
 
 1. Fetches the registry (runs `git pull` on the local cache)
-2. Refreshes the cached registry policy in `lorex.json`
-3. Because installed skills are directory symlinks into the cache, they immediately reflect new content
-4. Syncs all configured taps (`git pull` on each tap cache)
-5. Runs `lorex refresh` if any skills were updated
+2. Automatically removes skills whose registry entry has been deleted (broken symlinks with no upstream source)
+3. Refreshes the cached registry policy in `lorex.json`
+4. Because installed skills are directory symlinks into the cache, they immediately reflect new content
+5. Syncs all configured taps (`git pull` on each tap cache)
+6. Runs `lorex refresh` if any skills were updated
+
+### Stale skill cleanup
+
+If a skill you have installed has been deleted from the registry, Lorex removes it automatically and reports it:
+
+```
+Removed 2 stale skills (deleted from registry):
+  • authentication
+  • authentication-core
+```
 
 ### Overwrite protection
 
@@ -486,18 +505,20 @@ lorex refresh -t claude            # claude only
 Manage read-only skill sources (taps). A tap is any git repository containing skills — no lorex registry setup required.
 
 ```bash
-lorex tap add    <url> [--name <name>] [--root <path>]
-lorex tap remove <name>
-lorex tap list
-lorex tap sync   [<name>]
+lorex tap add    <url> [--name <name>] [--root <path>] [-g|--global]
+lorex tap remove <name> [-g|--global]
+lorex tap list   [-g|--global]
+lorex tap sync   [<name>] [-g|--global]
 ```
 
-Taps are project-level: each `.lorex/lorex.json` has its own list. The git clone cache at `~/.lorex/taps/<slug>/` is global and shared across all projects using the same tap URL.
+By default, tap commands operate on the current project's `.lorex/lorex.json`. Pass `-g` / `--global` to operate on the global lorex config at `~/.lorex/` instead.
+
+The git clone cache at `~/.lorex/taps/<slug>/` is always global and shared across all projects using the same tap URL.
 
 ### `lorex tap add`
 
 ```bash
-lorex tap add <url> [--name <name>] [--root <path>]
+lorex tap add <url> [--name <name>] [--root <path>] [-g|--global]
 ```
 
 | Argument / Flag | Description |
@@ -505,11 +526,12 @@ lorex tap add <url> [--name <name>] [--root <path>]
 | `<url>` | Git URL of the tap repository (HTTPS or SSH). |
 | `--name <name>` | Short identifier for the tap. Defaults to the repository owner (e.g. `dotnet` from `github.com/dotnet/skills`). |
 | `--root <path>` | Subdirectory within the repo to search for skills. By default lorex checks for a `skills/` subdirectory and falls back to the repo root. |
+| `-g`, `--global` | Add the tap to the global lorex config (`~/.lorex/`) instead of the current project. |
 
 On `lorex tap add`, lorex:
 1. Shallow-clones the repository to `~/.lorex/taps/<slug>/`
 2. Discovers all skills (validates at least one `SKILL.md` is found)
-3. Records the tap in `.lorex/lorex.json`
+3. Records the tap in `.lorex/lorex.json` (or `~/.lorex/lorex.json` with `--global`)
 
 If no skills are found, the command fails with an error and the config is not modified.
 
@@ -522,30 +544,44 @@ lorex tap add https://github.com/dotnet/skills --name dotnet
 
 # Repo where skills live in a subdirectory
 lorex tap add https://github.com/my-org/monorepo --root tools/skills --name my-org
+
+# Add a tap to the global config (available as a source in all projects)
+lorex tap add https://github.com/dotnet/skills --global
 ```
 
 ### `lorex tap remove`
 
 ```bash
-lorex tap remove <name>
+lorex tap remove <name> [-g|--global]
 ```
+
+| Flag | Description |
+| :--- | :--- |
+| `-g`, `--global` | Remove the tap from the global lorex config instead of the current project. |
 
 Removes the tap entry from `.lorex/lorex.json`. The global cache (`~/.lorex/taps/<slug>/`) is kept intact — other projects using the same tap URL continue to work without re-cloning.
 
 ### `lorex tap list`
 
 ```bash
-lorex tap list
+lorex tap list [-g|--global]
 ```
+
+| Flag | Description |
+| :--- | :--- |
+| `-g`, `--global` | List taps from the global lorex config instead of the current project. |
 
 Shows a table of configured taps: name, URL, skill count, root, and cache status.
 
 ### `lorex tap sync`
 
 ```bash
-lorex tap sync           # sync all taps
-lorex tap sync dotnet    # sync one tap by name
+lorex tap sync [<name>] [-g|--global]   # sync all taps (or one by name)
 ```
+
+| Flag | Description |
+| :--- | :--- |
+| `-g`, `--global` | Sync taps from the global lorex config instead of the current project. |
 
 Runs `git pull` on the specified tap cache(s). Skills installed from taps are symlinked, so they reflect the latest content immediately after sync.
 
