@@ -620,9 +620,16 @@ public sealed class SkillService(RegistryService registry)
                 }
                 else
                 {
-                    // Target vanished — reinstall using the already-synced cache
-                    InstallSkill(projectRoot, skillName, refreshRegistry: false);
-                    updated.Add(skillName);
+                    // Target vanished — try reinstalling from the already-synced cache.
+                    // If the skill was deleted from the registry, skip it here so the caller
+                    // can decide whether to prune it.
+                    var stillInRegistry = registry.FindSkillPath(config.Registry.Url, skillName, refresh: false) is not null;
+                    if (stillInRegistry)
+                    {
+                        InstallSkill(projectRoot, skillName, refreshRegistry: false);
+                        updated.Add(skillName);
+                    }
+                    // else: stale broken symlink — caller handles pruning
                 }
                 continue;
             }
@@ -661,6 +668,39 @@ public sealed class SkillService(RegistryService registry)
         }
 
         return updated;
+    }
+
+    /// <summary>
+    /// Returns installed registry skills whose local symlink is broken (target gone) and that no
+    /// longer exist in the registry — i.e. skills deleted upstream that should be pruned.
+    /// Tap-sourced and local skills are excluded.
+    /// </summary>
+    public IReadOnlyList<string> FindStaleRegistrySkills(string projectRoot)
+    {
+        var config = ReadConfig(projectRoot);
+        if (config.Registry is null) return [];
+
+        var stale = new List<string>();
+        foreach (var skillName in config.InstalledSkills)
+        {
+            // Only consider registry-sourced skills (not taps, not local)
+            if (config.InstalledSkillSources.TryGetValue(skillName, out var src) &&
+                !string.Equals(src, "registry", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var linkPath = SkillDir(projectRoot, skillName);
+
+            // Must be a broken symlink (directory exists as symlink but target is gone)
+            if (!IsSymlink(linkPath)) continue;
+            var target = new DirectoryInfo(linkPath).LinkTarget;
+            if (target is not null && Directory.Exists(target)) continue;
+
+            // Confirm it's also absent from the registry
+            if (registry.FindSkillPath(config.Registry.Url, skillName, refresh: false) is null)
+                stale.Add(skillName);
+        }
+
+        return stale;
     }
 
     // ── Publish ───────────────────────────────────────────────────────────────
