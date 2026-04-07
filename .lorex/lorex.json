@@ -8,10 +8,22 @@
   ],
   "installedSkills": [
     "lorex",
-    "lorex-contributing"
+    "lorex-contributing",
+    "csharp-scripts"
   ],
   "installedSkillVersions": {
     "lorex": "1.0.0",
-    "lorex-contributing": "1.0.0"
+    "lorex-contributing": "1.0.0",
+    "csharp-scripts": "1.0.0"
+  },
+  "taps": [
+    {
+      "name": "dotnet",
+      "url": "https://github.com/dotnet/skills",
+      "root": "plugins"
+    }
+  ],
+  "installedSkillSources": {
+    "csharp-scripts": "tap:dotnet"
   }
 }
