@@ -55,6 +55,28 @@ public static class StatusCommand
                 AnsiConsole.WriteLine();
             }
 
+            // ── Taps ─────────────────────────────────────────────────────────
+            if (config.Taps.Length > 0)
+            {
+                AnsiConsole.MarkupLine("[bold]Taps:[/] [dim]{0} configured[/]", config.Taps.Length);
+                var tapTable = new Table()
+                    .Border(TableBorder.Rounded)
+                    .AddColumn("[bold]Name[/]")
+                    .AddColumn("[bold]URL[/]")
+                    .AddColumn("[bold]Root[/]");
+
+                foreach (var tap in config.Taps)
+                {
+                    tapTable.AddRow(
+                        Markup.Escape(tap.Name),
+                        Markup.Escape(tap.Url),
+                        tap.Root is not null ? Markup.Escape(tap.Root) : "[dim](repo root)[/]");
+                }
+
+                AnsiConsole.Write(tapTable);
+                AnsiConsole.WriteLine();
+            }
+
             if (config.InstalledSkills.Length == 0)
             {
                 AnsiConsole.MarkupLine("[dim]No skills installed. Run [bold]lorex list[/] to browse available skills.[/]");
@@ -65,6 +87,7 @@ public static class StatusCommand
                 .Border(TableBorder.Rounded)
                 .AddColumn("[bold]Skill[/]")
                 .AddColumn("[bold]Version[/]")
+                .AddColumn("[bold]Source[/]")
                 .AddColumn("[bold]Link type[/]")
                 .AddColumn("[bold]Path[/]");
 
@@ -73,7 +96,8 @@ public static class StatusCommand
                 var dir = ServiceFactory.Skills.SkillDir(projectRoot, name);
                 var (linkType, style) = GetLinkInfo(dir);
                 var version = ServiceFactory.Skills.GetInstalledSkillVersion(projectRoot, name, config);
-                table.AddRow(name, version, $"[{style}]{linkType}[/]", Markup.Escape(dir));
+                var sourceLabel = GetSourceLabel(name, config.InstalledSkillSources, style);
+                table.AddRow(name, version, sourceLabel, $"[{style}]{linkType}[/]", Markup.Escape(dir));
             }
 
             AnsiConsole.Write(table);
@@ -102,5 +126,22 @@ public static class StatusCommand
         }
 
         return ("local", "yellow");
+    }
+
+    /// <summary>Returns a Spectre-marked-up source label for the installed-skills table.</summary>
+    private static string GetSourceLabel(string name, Dictionary<string, string> sources, string linkStyle)
+    {
+        if (sources.TryGetValue(name, out var src))
+        {
+            if (src.StartsWith("tap:", StringComparison.OrdinalIgnoreCase))
+                return $"[blue]tap: {Markup.Escape(src["tap:".Length..])}[/]";
+            if (src.StartsWith("url:", StringComparison.OrdinalIgnoreCase))
+                return "[dim]url[/]";
+            if (string.Equals(src, "registry", StringComparison.OrdinalIgnoreCase))
+                return "[dim]registry[/]";
+        }
+
+        // No source entry — infer from link type (symlink = registry, local = local/built-in)
+        return linkStyle == "green" ? "[dim]registry[/]" : "[dim]local[/]";
     }
 }

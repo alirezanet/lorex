@@ -29,9 +29,11 @@ public sealed class SkillService(RegistryService registry)
         // for fields absent from the JSON (they stay at their CLR default, i.e. null).
         return config with
         {
-            Adapters = config.Adapters ?? [],
-            InstalledSkills = config.InstalledSkills ?? [],
-            InstalledSkillVersions = config.InstalledSkillVersions ?? [],
+            Adapters              = config.Adapters              ?? [],
+            InstalledSkills       = config.InstalledSkills       ?? [],
+            InstalledSkillVersions= config.InstalledSkillVersions?? [],
+            Taps                  = config.Taps                  ?? [],
+            InstalledSkillSources = config.InstalledSkillSources ?? [],
         };
     }
 
@@ -155,12 +157,15 @@ public sealed class SkillService(RegistryService registry)
         var config = ReadConfig(projectRoot);
         var versions = new Dictionary<string, string>(config.InstalledSkillVersions, StringComparer.OrdinalIgnoreCase);
         versions.Remove(skillName);
+        var sources = new Dictionary<string, string>(config.InstalledSkillSources, StringComparer.OrdinalIgnoreCase);
+        sources.Remove(skillName);
         WriteConfig(projectRoot, config with
         {
             InstalledSkills = config.InstalledSkills
                 .Where(s => !s.Equals(skillName, StringComparison.OrdinalIgnoreCase))
                 .ToArray(),
             InstalledSkillVersions = versions,
+            InstalledSkillSources  = sources,
         });
     }
 
@@ -297,6 +302,279 @@ public sealed class SkillService(RegistryService registry)
         }
 
         return [.. installed];
+    }
+
+    // ── Tap installs ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Creates a symlink <c>.lorex/skills/&lt;name&gt;</c> → tap cache path, records the skill and
+    /// its tap source in <c>lorex.json</c>.
+    /// </summary>
+    public void InstallSkillFromTap(
+        string     projectRoot,
+        string     skillName,
+        Core.Models.TapConfig tap,
+        string     sourcePath,
+        bool       overwriteLocalSkill = false)
+    {
+        var linkPath = SkillDir(projectRoot, skillName);
+        Directory.CreateDirectory(Path.Combine(projectRoot, LorexDir, "skills"));
+
+        if (Directory.Exists(linkPath))
+        {
+            if (!IsSymlink(linkPath) && !overwriteLocalSkill)
+                throw new InvalidOperationException(
+                    $"Skill '{skillName}' already exists locally at '{linkPath}'. Overwrite requires direct user approval.");
+            Directory.Delete(linkPath, recursive: true);
+        }
+
+        if (!TryCreateSymlink(linkPath, sourcePath))
+            throw new InvalidOperationException(
+                "Lorex requires symlink support for installed tap skills. Enable symlinks and try again.");
+
+        var config = ReadConfig(projectRoot);
+        var versions = new Dictionary<string, string>(config.InstalledSkillVersions, StringComparer.OrdinalIgnoreCase);
+        var version = ReadSkillVersion(linkPath);
+        if (version is not null) versions[skillName] = version;
+
+        var sources = new Dictionary<string, string>(config.InstalledSkillSources, StringComparer.OrdinalIgnoreCase);
+        sources[skillName] = $"tap:{tap.Name}";
+
+        WriteConfig(projectRoot, config with
+        {
+            InstalledSkills = config.InstalledSkills.Contains(skillName, StringComparer.OrdinalIgnoreCase)
+                ? config.InstalledSkills
+                : [.. config.InstalledSkills, skillName],
+            InstalledSkillVersions = versions,
+            InstalledSkillSources  = sources,
+        });
+    }
+
+    /// <summary>
+    /// Installs a batch of tap skills efficiently (one config write at the end).
+    /// <paramref name="skillTapPaths"/> maps skill name → (TapConfig, source path in cache).
+    /// </summary>
+    public IReadOnlyList<string> InstallTapSkillsBatch(
+        string projectRoot,
+        IReadOnlyDictionary<string, (Core.Models.TapConfig Tap, string SourcePath)> skillTapPaths,
+        Func<string, bool>? shouldOverwrite = null)
+    {
+        var skillsDir = Path.Combine(projectRoot, LorexDir, "skills");
+        Directory.CreateDirectory(skillsDir);
+
+        var installed = new List<string>();
+        var errors    = new System.Collections.Concurrent.ConcurrentBag<(string, Exception)>();
+
+        foreach (var (skillName, (tap, sourcePath)) in skillTapPaths)
+        {
+            try
+            {
+                var linkPath = SkillDir(projectRoot, skillName);
+                if (Directory.Exists(linkPath))
+                {
+                    if (!IsSymlink(linkPath) && !(shouldOverwrite?.Invoke(skillName) ?? false))
+                        continue;
+                    Directory.Delete(linkPath, recursive: true);
+                }
+
+                if (!TryCreateSymlink(linkPath, sourcePath))
+                    throw new InvalidOperationException(
+                        "Lorex requires symlink support for installed tap skills. Enable symlinks and try again.");
+
+                installed.Add(skillName);
+            }
+            catch (Exception ex)
+            {
+                errors.Add((skillName, ex));
+            }
+        }
+
+        if (errors.Count > 0)
+        {
+            var first = errors.First();
+            throw new InvalidOperationException(
+                $"Failed to install tap skill '{first.Item1}': {first.Item2.Message}", first.Item2);
+        }
+
+        if (installed.Count > 0)
+        {
+            var config = ReadConfig(projectRoot);
+            var allInstalled = config.InstalledSkills
+                .Concat(installed)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            var versions = new Dictionary<string, string>(config.InstalledSkillVersions, StringComparer.OrdinalIgnoreCase);
+            var sources  = new Dictionary<string, string>(config.InstalledSkillSources,  StringComparer.OrdinalIgnoreCase);
+
+            foreach (var name in installed)
+            {
+                var v = ReadSkillVersion(SkillDir(projectRoot, name));
+                if (v is not null) versions[name] = v;
+                var tap = skillTapPaths[name].Tap;
+                sources[name] = $"tap:{tap.Name}";
+            }
+
+            WriteConfig(projectRoot, config with
+            {
+                InstalledSkills        = allInstalled,
+                InstalledSkillVersions = versions,
+                InstalledSkillSources  = sources,
+            });
+        }
+
+        return installed;
+    }
+
+    // ── Direct URL install ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Installs a skill directly from a git URL without requiring a registered tap.
+    /// Supports GitHub tree URLs (<c>https://github.com/owner/repo/tree/branch/path</c>) and plain
+    /// repo URLs (single-skill repos only). The skill is copied — not symlinked — and its source URL
+    /// is recorded so <c>lorex status</c> can display it.
+    /// Returns the installed skill name.
+    /// </summary>
+    public string InstallSkillFromUrl(string projectRoot, string url, GitService git)
+    {
+        var (repoUrl, skillPath) = ParseGitHubSkillUrl(url);
+
+        var tempDir = Path.Combine(Path.GetTempPath(), $"lorex-url-{Guid.NewGuid():N}");
+        try
+        {
+            Directory.CreateDirectory(tempDir);
+            git.CloneShallow(repoUrl, tempDir);
+
+            string skillSourceDir;
+            string skillName;
+
+            if (skillPath is not null)
+            {
+                skillSourceDir = Path.GetFullPath(
+                    Path.Combine(tempDir, skillPath.Replace('/', Path.DirectorySeparatorChar)));
+
+                // Guard against path traversal
+                if (!skillSourceDir.StartsWith(
+                        Path.GetFullPath(tempDir) + Path.DirectorySeparatorChar,
+                        StringComparison.OrdinalIgnoreCase)
+                    && !skillSourceDir.Equals(Path.GetFullPath(tempDir), StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("Invalid skill path.");
+
+                if (!Directory.Exists(skillSourceDir))
+                    throw new InvalidOperationException(
+                        $"Path '{skillPath}' not found in repository '{repoUrl}'.");
+
+                var entryPath = SkillFileConvention.ResolveEntryPath(skillSourceDir)
+                    ?? throw new InvalidOperationException(
+                        $"No SKILL.md found at '{skillPath}' in repository '{repoUrl}'.");
+
+                var meta = SimpleYamlParser.ParseSkillMetadataFromMarkdown(File.ReadAllText(entryPath));
+                skillName = string.IsNullOrWhiteSpace(meta.Name)
+                    ? Path.GetFileName(skillSourceDir)
+                    : meta.Name;
+            }
+            else
+            {
+                // Auto-discover skills in the repo
+                var searchRoot = Directory.Exists(Path.Combine(tempDir, "skills"))
+                    ? Path.Combine(tempDir, "skills")
+                    : tempDir;
+
+                var discovered = RegistryService.EnumerateSkillDirectories(searchRoot).ToList();
+
+                if (discovered.Count == 0)
+                    throw new InvalidOperationException(
+                        $"No skills found in '{repoUrl}'. " +
+                        $"Specify a skill path (e.g. {url}/tree/main/skill-name) " +
+                        $"or use 'lorex tap add' to browse all skills in the repository.");
+
+                if (discovered.Count > 1)
+                {
+                    var names = discovered.Select(d => Path.GetFileName(d) ?? d);
+                    throw new InvalidOperationException(
+                        $"Multiple skills found in '{repoUrl}': {string.Join(", ", names)}. " +
+                        $"Specify one: lorex install {url}/tree/main/<skill-name>, " +
+                        $"or use 'lorex tap add' to browse all.");
+                }
+
+                skillSourceDir = discovered[0];
+                var ep = SkillFileConvention.ResolveEntryPath(skillSourceDir)!;
+                var meta = SimpleYamlParser.ParseSkillMetadataFromMarkdown(File.ReadAllText(ep));
+                skillName = string.IsNullOrWhiteSpace(meta.Name)
+                    ? Path.GetFileName(skillSourceDir) ?? "skill"
+                    : meta.Name;
+            }
+
+            // Copy skill files to .lorex/skills/<name>/
+            Directory.CreateDirectory(Path.Combine(projectRoot, LorexDir, "skills"));
+            var destDir = SkillDir(projectRoot, skillName);
+
+            if (Directory.Exists(destDir))
+            {
+                if (IsSymlink(destDir))
+                    Directory.Delete(destDir, recursive: true);
+                else
+                    throw new InvalidOperationException(
+                        $"Skill '{skillName}' already exists locally at '{destDir}'. " +
+                        $"Remove it first: lorex uninstall {skillName}");
+            }
+
+            CopySkillFolder(skillSourceDir, destDir);
+
+            var config = ReadConfig(projectRoot);
+            var versions = new Dictionary<string, string>(config.InstalledSkillVersions, StringComparer.OrdinalIgnoreCase);
+            var v = ReadSkillVersion(destDir);
+            if (v is not null) versions[skillName] = v;
+
+            var sources = new Dictionary<string, string>(config.InstalledSkillSources, StringComparer.OrdinalIgnoreCase);
+            sources[skillName] = $"url:{url}";
+
+            WriteConfig(projectRoot, config with
+            {
+                InstalledSkills = config.InstalledSkills.Contains(skillName, StringComparer.OrdinalIgnoreCase)
+                    ? config.InstalledSkills
+                    : [.. config.InstalledSkills, skillName],
+                InstalledSkillVersions = versions,
+                InstalledSkillSources  = sources,
+            });
+
+            return skillName;
+        }
+        finally
+        {
+            try { if (Directory.Exists(tempDir)) Directory.Delete(tempDir, recursive: true); }
+            catch { /* best-effort cleanup */ }
+        }
+    }
+
+    /// <summary>
+    /// Parses a GitHub URL into a (repoUrl, skillPath?) tuple.
+    /// Handles <c>https://github.com/owner/repo/tree/branch/path</c> and plain repo URLs.
+    /// </summary>
+    internal static (string RepoUrl, string? SkillPath) ParseGitHubSkillUrl(string url)
+    {
+        url = url.TrimEnd('/');
+
+        // Normalise SSH → HTTPS
+        if (url.StartsWith("git@github.com:", StringComparison.OrdinalIgnoreCase))
+            url = "https://github.com/" + url["git@github.com:".Length..];
+
+        // GitHub tree URL: https://github.com/owner/repo/tree/branch/path
+        var treeIdx = url.IndexOf("/tree/", StringComparison.OrdinalIgnoreCase);
+        if (treeIdx >= 0)
+        {
+            var repoUrl   = url[..treeIdx];
+            var afterTree = url[(treeIdx + "/tree/".Length)..];
+            var slashIdx  = afterTree.IndexOf('/');
+            if (slashIdx >= 0)
+            {
+                var path = afterTree[(slashIdx + 1)..];
+                return (repoUrl, string.IsNullOrWhiteSpace(path) ? null : path);
+            }
+            return (repoUrl, null);
+        }
+
+        return (url, null);
     }
 
     // ── Sync ──────────────────────────────────────────────────────────────────

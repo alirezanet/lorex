@@ -27,6 +27,8 @@ internal static class SkillPickerTui
         public int     Cursor    = 0;
         public bool    Confirmed = false;
         public bool    Cancelled = false;
+        public bool    ShowTaps  = true;
+        public int     TapCount  = 0;   // tap skills matching current search (set by ComputePage)
         public readonly HashSet<string> Selected = new(StringComparer.OrdinalIgnoreCase);
     }
 
@@ -34,12 +36,14 @@ internal static class SkillPickerTui
     /// Runs the TUI picker. Returns selected skill names, or an empty list if cancelled.
     /// <paramref name="initialSearch"/> pre-populates the search buffer.
     /// <paramref name="tagFilter"/> is an immutable tag filter shown in the header.
+    /// <paramref name="skillSources"/> maps skill name → source label (e.g. <c>"tap:dotnet"</c>).
     /// </summary>
     internal static List<string> Run(
         IReadOnlyList<SkillMetadata> choices,
-        HashSet<string> recommendedSet,
-        string? initialSearch = null,
-        string? tagFilter     = null)
+        HashSet<string>              recommendedSet,
+        Dictionary<string, string>?  skillSources  = null,
+        string?                      initialSearch = null,
+        string?                      tagFilter     = null)
     {
         if (Console.IsInputRedirected)
             return [];
@@ -53,8 +57,8 @@ internal static class SkillPickerTui
         {
             while (!state.Confirmed && !state.Cancelled)
             {
-                var (filtered, pageItems, totalPages) = ComputePage(choices, state, tagFilter, recommendedSet);
-                Render(state, filtered, pageItems, totalPages, recommendedSet, tagFilter, width, ref lastLines);
+                var (filtered, pageItems, totalPages) = ComputePage(choices, state, tagFilter, recommendedSet, skillSources);
+                Render(state, filtered, pageItems, totalPages, recommendedSet, skillSources, tagFilter, width, ref lastLines);
 
                 ConsoleKeyInfo key;
                 try   { key = Console.ReadKey(intercept: true); }
@@ -81,7 +85,8 @@ internal static class SkillPickerTui
             IReadOnlyList<SkillMetadata> choices,
             State state,
             string? tagFilter,
-            HashSet<string> recommendedSet)
+            HashSet<string> recommendedSet,
+            Dictionary<string, string>? skillSources)
     {
         IEnumerable<SkillMetadata> result = choices;
 
@@ -97,8 +102,19 @@ internal static class SkillPickerTui
                 s.Tags.Any(t => t.Contains(q, StringComparison.OrdinalIgnoreCase)));
         }
 
-        var filtered = result
+        // Materialise once to count tap skills (for "N hidden" footer message)
+        var enumerated = result.ToList();
+        state.TapCount = enumerated.Count(s => IsTapSkill(s.Name, skillSources));
+
+        // Apply tap-visibility toggle
+        IEnumerable<SkillMetadata> visible = enumerated;
+        if (!state.ShowTaps)
+            visible = visible.Where(s => !IsTapSkill(s.Name, skillSources));
+
+        // Sort: recommended first → registry before tap → alphabetical
+        var filtered = visible
             .OrderByDescending(s => recommendedSet.Contains(s.Name))
+            .ThenByDescending(s => !IsTapSkill(s.Name, skillSources))  // registry first
             .ThenBy(s => s.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -152,6 +168,12 @@ internal static class SkillPickerTui
                 state.Confirmed = true;
                 break;
 
+            case ConsoleKey.Tab:
+                state.ShowTaps = !state.ShowTaps;
+                state.Page     = 0;
+                state.Cursor   = 0;
+                break;
+
             case ConsoleKey.Escape:
                 if (state.Search.Length > 0)
                     { state.Search = ""; state.Page = 0; state.Cursor = 0; }
@@ -178,14 +200,15 @@ internal static class SkillPickerTui
     // ── Rendering ────────────────────────────────────────────────────────────
 
     private static void Render(
-        State state,
-        List<SkillMetadata> filtered,
-        List<SkillMetadata> pageItems,
-        int totalPages,
-        HashSet<string> recommendedSet,
-        string? tagFilter,
-        int width,
-        ref int lastLines)
+        State                       state,
+        List<SkillMetadata>         filtered,
+        List<SkillMetadata>         pageItems,
+        int                         totalPages,
+        HashSet<string>             recommendedSet,
+        Dictionary<string, string>? skillSources,
+        string?                     tagFilter,
+        int                         width,
+        ref int                     lastLines)
     {
         var sb = new System.Text.StringBuilder(2048);
 
@@ -203,8 +226,12 @@ internal static class SkillPickerTui
             lines++;
         }
 
+        var hasTapSkills = skillSources != null &&
+            skillSources.Values.Any(s => s.StartsWith("tap:", StringComparison.OrdinalIgnoreCase));
+
         // ── Header ───────────────────────────────────────────────────────────
-        Line($"{Bold}Install Skills{Rst}  {Dim}↑↓ navigate · Space select · Enter confirm · Esc cancel{Rst}");
+        var tapHint = hasTapSkills ? $" {Dim}· Tab taps{Rst}" : "";
+        Line($"{Bold}Install Skills{Rst}  {Dim}↑↓ navigate · Space select · Enter confirm · Esc cancel{Rst}{tapHint}");
 
         // ── Search bar ───────────────────────────────────────────────────────
         var hint = state.Search.Length == 0 ? $"{Dim}type to filter…{Rst}" : "";
@@ -216,20 +243,26 @@ internal static class SkillPickerTui
         Line($"{Dim}{sep}{Rst}");
 
         // ── Skill rows ───────────────────────────────────────────────────────
-        //  Row layout: " › [✓] ★  NAME…  — DESC…"
-        //  Fixed overhead before name : 9 chars  (" › [✓] ★  ")
-        //  Fixed overhead name→desc   : 3 chars  (" — ")
-        //  Total overhead             : 12 chars
+        //  Row layout: " › [✓] ★  NAME…  Source____  — DESC…"
+        //  Fixed overhead before name: " › [✓] ★  " = 9 chars
+        //  Source column: 2-space lead + 10-char value = 12 total (only when taps present)
+        const int SourceColWidth = 10;
+        const int SourceOverhead = 12;
+        var sourceOverhead = hasTapSkills ? SourceOverhead : 0;
         var nameColWidth = pageItems.Count > 0
             ? Math.Clamp(pageItems.Max(s => s.Name.Length) + 1, 18, 50)
             : 26;
-        var maxDesc = Math.Max(20, width - nameColWidth - 12);
+        var maxDesc = Math.Max(20, width - nameColWidth - 12 - sourceOverhead);
 
         if (pageItems.Count == 0)
         {
-            var msg = !string.IsNullOrWhiteSpace(state.Search)
-                ? $"{Yel}  No skills match \"{Esc(state.Search)}\" — press Backspace to refine{Rst}"
-                : $"{Dim}  No skills available.{Rst}";
+            string msg;
+            if (!state.ShowTaps && state.TapCount > 0 && string.IsNullOrWhiteSpace(state.Search))
+                msg = $"{Yel}  All available skills are from taps — press Tab to show them{Rst}";
+            else if (!string.IsNullOrWhiteSpace(state.Search))
+                msg = $"{Yel}  No skills match \"{Esc(state.Search)}\" — press Backspace to refine{Rst}";
+            else
+                msg = $"{Dim}  No skills available.{Rst}";
             Line(msg);
             for (var p = 1; p < PageSize; p++) Line("");
         }
@@ -250,11 +283,30 @@ internal static class SkillPickerTui
                 var nameEnd  = (isCursor || isSel) ? Rst : "";
                 var name     = PadTrunc(skill.Name, nameColWidth);
 
+                // Source column: fixed width, replaces the old (tapname) badge
+                var sourceCol = "";
+                if (hasTapSkills)
+                {
+                    if (skillSources != null &&
+                        skillSources.TryGetValue(skill.Name, out var src) &&
+                        src.StartsWith("tap:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var tapLabel = src["tap:".Length..];
+                        if (tapLabel.Length > SourceColWidth) tapLabel = tapLabel[..(SourceColWidth - 1)] + "…";
+                        sourceCol = $"  {Blue}{tapLabel,-SourceColWidth}{Rst}";
+                    }
+                    else
+                    {
+                        // Registry skill: dim placeholder to keep columns aligned
+                        sourceCol = $"  {Dim}{"registry",-SourceColWidth}{Rst}";
+                    }
+                }
+
                 var desc = string.IsNullOrWhiteSpace(skill.Description)
                     ? ""
                     : $" {Dim}— {Esc(Trunc(skill.Description, maxDesc))}{Rst}";
 
-                Line($" {arrow} {box} {star} {nameClr}{Esc(name)}{nameEnd}{desc}");
+                Line($" {arrow} {box} {star} {nameClr}{Esc(name)}{nameEnd}{sourceCol}{desc}");
             }
 
             // Pad to PageSize so the footer doesn't jump when results change
@@ -271,7 +323,20 @@ internal static class SkillPickerTui
             : $"{Grn}{Bold}{state.Selected.Count} selected{Rst}";
         var pageHint   = totalPages > 1 ? $"  {Dim}PgUp/PgDn to page{Rst}" : "";
 
-        Line($" {pageLabel}  {countLabel}  {selLabel}{pageHint}");
+        string tapStatus;
+        if (hasTapSkills)
+        {
+            if (!state.ShowTaps)
+                tapStatus = state.TapCount > 0
+                    ? $"  {Yel}■ {state.TapCount} tap skill{(state.TapCount == 1 ? "" : "s")} hidden{Rst} {Dim}(Tab to show){Rst}"
+                    : $"  {Dim}Taps hidden{Rst} {Dim}(Tab to show){Rst}";
+            else
+                tapStatus = $"  {Dim}Tab: hide taps{Rst}";
+        }
+        else
+            tapStatus = "";
+
+        Line($" {pageLabel}  {countLabel}  {selLabel}{pageHint}{tapStatus}");
 
         // Erase any leftover lines from a previous (taller) render
         sb.Append("\x1b[J");
@@ -281,6 +346,11 @@ internal static class SkillPickerTui
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private static bool IsTapSkill(string name, Dictionary<string, string>? sources) =>
+        sources != null &&
+        sources.TryGetValue(name, out var src) &&
+        src.StartsWith("tap:", StringComparison.OrdinalIgnoreCase);
 
     private static int SafeWidth()
     {

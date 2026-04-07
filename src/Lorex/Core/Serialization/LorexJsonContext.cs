@@ -7,6 +7,8 @@ namespace Lorex.Core.Serialization;
 [JsonSerializable(typeof(GlobalConfig))]
 [JsonSerializable(typeof(RegistryConfig))]
 [JsonSerializable(typeof(RegistryPolicy))]
+[JsonSerializable(typeof(TapConfig))]
+[JsonSerializable(typeof(TapConfig[]))]
 [JsonSerializable(typeof(Dictionary<string, string>))]
 [JsonSerializable(typeof(SkillMetadata[]))]
 [JsonSourceGenerationOptions(

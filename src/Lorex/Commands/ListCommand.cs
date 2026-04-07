@@ -23,10 +23,10 @@ public static class ListCommand
         {
             var config = ServiceFactory.Skills.ReadConfig(projectRoot);
 
-            if (config.Registry is null)
+            if (config.Registry is null && config.Taps.Length == 0)
             {
-                AnsiConsole.MarkupLine("[yellow]No registry configured[/] — lorex is running in local-only mode.");
-                AnsiConsole.MarkupLine("[dim]Run [bold]lorex init <url>[/] to connect a registry and browse available skills.[/]");
+                AnsiConsole.MarkupLine("[yellow]No registry or taps configured[/] — lorex is running in local-only mode.");
+                AnsiConsole.MarkupLine("[dim]Run [bold]lorex init <url>[/] to connect a registry, or [bold]lorex tap add <url>[/] to add a skill source.[/]");
                 return 0;
             }
 
@@ -41,16 +41,17 @@ public static class ListCommand
                 string.Equals(a, PageSizeFlag, StringComparison.OrdinalIgnoreCase));
 
             IReadOnlyList<SkillMetadata> available = [];
+            Dictionary<string, string> skillSources = [];
             AnsiConsole.Status()
                 .Start("Fetching registry…", ctx =>
                 {
                     ctx.Spinner(Spinner.Known.Dots);
-                    available = ServiceFactory.RegistrySkills.ListAvailableSkills(config);
+                    (available, skillSources) = ServiceFactory.RegistrySkills.ListAllSkills(config);
                 });
 
             if (available.Count == 0)
             {
-                AnsiConsole.MarkupLine("[yellow]No skills found in the registry.[/]");
+                AnsiConsole.MarkupLine("[yellow]No skills found in the registry or configured taps.[/]");
                 return 0;
             }
 
@@ -62,13 +63,14 @@ public static class ListCommand
             // Launch interactive TUI when stdout is a terminal and no pagination flags given
             if (!hasPagingFlags && !Console.IsOutputRedirected && !Console.IsInputRedirected)
             {
-                SkillBrowserTui.Run(available, installed, installedVersions, recommendedSet, search, tag);
+                SkillBrowserTui.Run(available, installed, installedVersions, recommendedSet, skillSources, search, tag);
                 return 0;
             }
 
-            // Sort: recommended first, then alphabetical
+            // Sort: recommended first → registry before tap → alphabetical
             var sorted = available
                 .OrderByDescending(s => recommendedSet.Contains(s.Name))
+                .ThenByDescending(s => !IsTapSkill(s.Name, skillSources))
                 .ThenBy(s => s.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
@@ -111,7 +113,8 @@ public static class ListCommand
             }
 
             AnsiConsole.WriteLine();
-            AnsiConsole.MarkupLine("[dim]Registry:[/] [bold]{0}[/]", Markup.Escape(config.Registry.Url));
+            if (config.Registry is not null)
+                AnsiConsole.MarkupLine("[dim]Registry:[/] [bold]{0}[/]", Markup.Escape(config.Registry.Url));
 
             if (hasFilter)
             {
@@ -129,13 +132,20 @@ public static class ListCommand
             AnsiConsole.MarkupLine("[dim]Showing {0}–{1} of {2} skill{3}[/]",
                 startIndex, endIndex, totalCount, totalCount == 1 ? "" : "s");
 
+            var hasTapSkills = skillSources.Values.Any(s =>
+                s.StartsWith("tap:", StringComparison.OrdinalIgnoreCase));
+
             var table = new Table()
                 .Border(TableBorder.Rounded)
                 .AddColumn("[bold]Skill[/]")
                 .AddColumn("[bold]Description[/]")
                 .AddColumn("[bold]Version[/]")
-                .AddColumn("[bold]Tags[/]")
-                .AddColumn("[bold]Status[/]");
+                .AddColumn("[bold]Tags[/]");
+
+            if (hasTapSkills)
+                table.AddColumn("[bold]Source[/]");
+
+            table.AddColumn("[bold]Status[/]");
 
             foreach (var skill in pageItems)
             {
@@ -153,12 +163,26 @@ public static class ListCommand
                         : "[dim]available[/]";
                 }
 
-                table.AddRow(
-                    skill.Name,
-                    skill.Description,
-                    skill.Version,
-                    string.Join(", ", skill.Tags),
-                    status);
+                if (hasTapSkills)
+                {
+                    var sourceLabel = GetSourceLabel(skill.Name, skillSources);
+                    table.AddRow(
+                        skill.Name,
+                        skill.Description,
+                        skill.Version,
+                        string.Join(", ", skill.Tags),
+                        sourceLabel,
+                        status);
+                }
+                else
+                {
+                    table.AddRow(
+                        skill.Name,
+                        skill.Description,
+                        skill.Version,
+                        string.Join(", ", skill.Tags),
+                        status);
+                }
             }
 
             AnsiConsole.Write(table);
@@ -194,5 +218,20 @@ public static class ListCommand
 
         // Fall back to string comparison — different strings means unknown state, not an update
         return false;
+    }
+
+    private static bool IsTapSkill(string name, Dictionary<string, string> sources) =>
+        sources.TryGetValue(name, out var src) &&
+        src.StartsWith("tap:", StringComparison.OrdinalIgnoreCase);
+
+    private static string GetSourceLabel(string name, Dictionary<string, string> sources)
+    {
+        if (!sources.TryGetValue(name, out var src))
+            return "[dim]registry[/]";
+        if (src.StartsWith("tap:", StringComparison.OrdinalIgnoreCase))
+            return $"[blue]tap: {Markup.Escape(src["tap:".Length..])}[/]";
+        if (src.StartsWith("url:", StringComparison.OrdinalIgnoreCase))
+            return "[dim]url[/]";
+        return "[dim]registry[/]";
     }
 }

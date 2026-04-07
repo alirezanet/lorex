@@ -48,7 +48,7 @@ public sealed class CommandArgumentTests
         {
             InstalledSkills = ["auth"],
         };
-        var service = new RegistrySkillQueryService(new RegistryService(new GitService()), new GitService());
+        var service = new RegistrySkillQueryService(new RegistryService(new GitService()), new GitService(), new TapService(new GitService()));
 
         var available = new[]
         {
@@ -65,7 +65,7 @@ public sealed class CommandArgumentTests
     [Fact]
     public void RegistrySkillQueryService_IsRecommendedForProject_MatchesProjectTags()
     {
-        var service = new RegistrySkillQueryService(new RegistryService(new GitService()), new GitService());
+        var service = new RegistrySkillQueryService(new RegistryService(new GitService()), new GitService(), new TapService(new GitService()));
 
         var matchingSkill = new SkillMetadata
         {
@@ -336,7 +336,7 @@ public sealed class CommandArgumentTests
     [Fact]
     public void RegistrySkillQueryService_FilterBySearch_ReturnsAllWhenBothNull()
     {
-        var service = new RegistrySkillQueryService(new RegistryService(new GitService()), new GitService());
+        var service = new RegistrySkillQueryService(new RegistryService(new GitService()), new GitService(), new TapService(new GitService()));
         var skills = new[]
         {
             new SkillMetadata { Name = "auth", Description = "Auth" },
@@ -351,7 +351,7 @@ public sealed class CommandArgumentTests
     [Fact]
     public void RegistrySkillQueryService_FilterBySearch_FiltersByName()
     {
-        var service = new RegistrySkillQueryService(new RegistryService(new GitService()), new GitService());
+        var service = new RegistrySkillQueryService(new RegistryService(new GitService()), new GitService(), new TapService(new GitService()));
         var skills = new[]
         {
             new SkillMetadata { Name = "auth-logic",    Description = "Token validation" },
@@ -367,7 +367,7 @@ public sealed class CommandArgumentTests
     [Fact]
     public void RegistrySkillQueryService_FilterBySearch_FiltersByDescription()
     {
-        var service = new RegistrySkillQueryService(new RegistryService(new GitService()), new GitService());
+        var service = new RegistrySkillQueryService(new RegistryService(new GitService()), new GitService(), new TapService(new GitService()));
         var skills = new[]
         {
             new SkillMetadata { Name = "auth",  Description = "Token validation and session rules" },
@@ -383,7 +383,7 @@ public sealed class CommandArgumentTests
     [Fact]
     public void RegistrySkillQueryService_FilterBySearch_FiltersByTagSubstring()
     {
-        var service = new RegistrySkillQueryService(new RegistryService(new GitService()), new GitService());
+        var service = new RegistrySkillQueryService(new RegistryService(new GitService()), new GitService(), new TapService(new GitService()));
         var skills = new[]
         {
             new SkillMetadata { Name = "auth",  Description = "Auth",  Tags = ["security", "dotnet"] },
@@ -399,7 +399,7 @@ public sealed class CommandArgumentTests
     [Fact]
     public void RegistrySkillQueryService_FilterBySearch_FiltersByExactTag()
     {
-        var service = new RegistrySkillQueryService(new RegistryService(new GitService()), new GitService());
+        var service = new RegistrySkillQueryService(new RegistryService(new GitService()), new GitService(), new TapService(new GitService()));
         var skills = new[]
         {
             new SkillMetadata { Name = "auth",  Description = "Auth",  Tags = ["security", "dotnet"] },
@@ -416,7 +416,7 @@ public sealed class CommandArgumentTests
     [Fact]
     public void RegistrySkillQueryService_FilterBySearch_BothFiltersApplied()
     {
-        var service = new RegistrySkillQueryService(new RegistryService(new GitService()), new GitService());
+        var service = new RegistrySkillQueryService(new RegistryService(new GitService()), new GitService(), new TapService(new GitService()));
         var skills = new[]
         {
             new SkillMetadata { Name = "auth",  Description = "Auth rules",  Tags = ["security", "dotnet"] },

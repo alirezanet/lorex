@@ -17,4 +17,14 @@ public sealed record LorexConfig
 
     /// <summary>Maps installed skill name → version string at the time of install/sync.</summary>
     public Dictionary<string, string> InstalledSkillVersions { get; init; } = [];
+
+    /// <summary>Read-only skill sources added via <c>lorex tap add</c>.</summary>
+    public TapConfig[] Taps { get; init; } = [];
+
+    /// <summary>
+    /// Maps installed skill name → source identifier.
+    /// Values: <c>tap:&lt;name&gt;</c> for tap-sourced skills, <c>url:&lt;url&gt;</c> for directly-installed skills.
+    /// Absent entries are primary-registry skills.
+    /// </summary>
+    public Dictionary<string, string> InstalledSkillSources { get; init; } = [];
 }

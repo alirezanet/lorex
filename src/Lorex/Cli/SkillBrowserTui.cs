@@ -22,21 +22,26 @@ internal static class SkillBrowserTui
 
     private sealed class State
     {
-        public string Search = "";
-        public int    Page   = 0;
-        public int    Cursor = 0;
-        public bool   Exited = false;
+        public string Search    = "";
+        public int    Page      = 0;
+        public int    Cursor    = 0;
+        public bool   Exited    = false;
+        public bool   ShowTaps  = true;
+        public int    TapCount  = 0;   // tap skills matching current search (set by ComputePage)
     }
 
     /// <summary>
-    /// Shows the TUI registry browser. Blocks until the user exits (Esc / Enter / Q).
+    /// Shows the TUI registry browser. Blocks until the user exits (Esc / Enter).
     /// <paramref name="initialSearch"/> and <paramref name="tagFilter"/> pre-populate filters.
+    /// <paramref name="skillSources"/> maps skill name → source label (e.g. <c>"tap:dotnet"</c>);
+    /// absent entries are primary-registry skills.
     /// </summary>
     internal static void Run(
         IReadOnlyList<SkillMetadata> allSkills,
         HashSet<string>              installed,
         Dictionary<string, string>   installedVersions,
         HashSet<string>              recommendedSet,
+        Dictionary<string, string>?  skillSources  = null,
         string?                      initialSearch = null,
         string?                      tagFilter     = null)
     {
@@ -53,11 +58,11 @@ internal static class SkillBrowserTui
             while (!state.Exited)
             {
                 var (filtered, pageItems, totalPages) =
-                    ComputePage(allSkills, state, tagFilter, recommendedSet, installed, installedVersions);
+                    ComputePage(allSkills, state, tagFilter, recommendedSet, installed, installedVersions, skillSources);
 
                 Render(state, filtered, pageItems, totalPages,
                        installed, installedVersions, recommendedSet,
-                       tagFilter, width, ref lastLines);
+                       skillSources, tagFilter, width, ref lastLines);
 
                 ConsoleKeyInfo key;
                 try   { key = Console.ReadKey(intercept: true); }
@@ -83,7 +88,8 @@ internal static class SkillBrowserTui
             string?                      tagFilter,
             HashSet<string>              recommendedSet,
             HashSet<string>              installed,
-            Dictionary<string, string>   installedVersions)
+            Dictionary<string, string>   installedVersions,
+            Dictionary<string, string>?  skillSources)
     {
         IEnumerable<SkillMetadata> result = all;
 
@@ -99,11 +105,21 @@ internal static class SkillBrowserTui
                 s.Tags.Any(t => t.Contains(q, StringComparison.OrdinalIgnoreCase)));
         }
 
-        // Sort: installed+update first, then recommended, then alphabetical
-        var filtered = result
+        // Materialise once to count taps (for the footer "N taps hidden" message)
+        var enumerated = result.ToList();
+        state.TapCount = enumerated.Count(s => IsTapSkill(s.Name, skillSources));
+
+        // Apply tap-visibility toggle
+        IEnumerable<SkillMetadata> visible = enumerated;
+        if (!state.ShowTaps)
+            visible = visible.Where(s => !IsTapSkill(s.Name, skillSources));
+
+        // Sort: installed+update → installed → recommended → registry before tap → alphabetical
+        var filtered = visible
             .OrderByDescending(s => installed.Contains(s.Name) && HasUpdate(s, installedVersions))
             .ThenByDescending(s => installed.Contains(s.Name))
             .ThenByDescending(s => recommendedSet.Contains(s.Name))
+            .ThenByDescending(s => !IsTapSkill(s.Name, skillSources))  // registry first
             .ThenBy(s => s.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -147,6 +163,12 @@ internal static class SkillBrowserTui
                 state.Exited = true;
                 break;
 
+            case ConsoleKey.Tab:
+                state.ShowTaps = !state.ShowTaps;
+                state.Page     = 0;
+                state.Cursor   = 0;
+                break;
+
             case ConsoleKey.Escape:
                 if (state.Search.Length > 0)
                     { state.Search = ""; state.Page = 0; state.Cursor = 0; }
@@ -173,16 +195,17 @@ internal static class SkillBrowserTui
     // ── Rendering ────────────────────────────────────────────────────────────
 
     private static void Render(
-        State                      state,
-        List<SkillMetadata>        filtered,
-        List<SkillMetadata>        pageItems,
-        int                        totalPages,
-        HashSet<string>            installed,
-        Dictionary<string, string> installedVersions,
-        HashSet<string>            recommendedSet,
-        string?                    tagFilter,
-        int                        width,
-        ref int                    lastLines)
+        State                       state,
+        List<SkillMetadata>         filtered,
+        List<SkillMetadata>         pageItems,
+        int                         totalPages,
+        HashSet<string>             installed,
+        Dictionary<string, string>  installedVersions,
+        HashSet<string>             recommendedSet,
+        Dictionary<string, string>? skillSources,
+        string?                     tagFilter,
+        int                         width,
+        ref int                     lastLines)
     {
         var sb = new System.Text.StringBuilder(2048);
 
@@ -198,8 +221,13 @@ internal static class SkillBrowserTui
             lines++;
         }
 
+        // Determine whether the source column is needed (any tap skills in the full set)
+        var hasTapSkills = skillSources != null &&
+            skillSources.Values.Any(s => s.StartsWith("tap:", StringComparison.OrdinalIgnoreCase));
+
         // ── Header ───────────────────────────────────────────────────────────
-        Line($"{Bold}Browse Registry Skills{Rst}  {Dim}↑↓ navigate · type to filter · Esc clear · Enter/Esc exit{Rst}");
+        var tapHint = hasTapSkills ? $" {Dim}· Tab taps{Rst}" : "";
+        Line($"{Bold}Browse Registry Skills{Rst}  {Dim}↑↓ navigate · type to filter · Esc clear · Enter/Esc exit{Rst}{tapHint}");
 
         // ── Search bar ───────────────────────────────────────────────────────
         var hint = state.Search.Length == 0 ? $"{Dim}type to filter by name, description, or tag…{Rst}" : "";
@@ -211,23 +239,32 @@ internal static class SkillBrowserTui
         Line($"{Dim}{sep}{Rst}");
 
         // ── Column headers ───────────────────────────────────────────────────
-        //  Row layout: " ›  ICON  NAME…  — DESC…"
-        //  Fixed overhead: cursor(2) + icon(2) + " — "(3) = 7 chars + nameColWidth
+        //  Row layout:  " ›  ST  Name__________  Source______  Description"
+        //  Overhead before name: cursor(2) + icon(2) + 2 spaces = 6
         var nameColWidth = pageItems.Count > 0
             ? Math.Clamp(pageItems.Max(s => s.Name.Length) + 1, 18, 50)
             : 26;
-        var maxDesc = Math.Max(20, width - nameColWidth - 7);
+        // Source column: 2-space lead + 10-char value = 12 total (only shown when taps present)
+        const int SourceColWidth = 10;
+        const int SourceOverhead = 12;  // 2 leading spaces + SourceColWidth
+        var sourceOverhead = hasTapSkills ? SourceOverhead : 0;
+        var maxDesc = Math.Max(20, width - nameColWidth - 7 - sourceOverhead);
 
-        var hdrName = "Skill".PadRight(nameColWidth);
-        Line($"{Dim}  {"St",-2}  {hdrName}  {"Description"}{Rst}");
+        var sourceHdr = hasTapSkills ? $"  {Dim}{"Source",-SourceColWidth}{Rst}" : "";
+        var hdrName   = "Skill".PadRight(nameColWidth);
+        Line($"{Dim}  {"St",-2}  {hdrName}{sourceHdr}  {"Description"}{Rst}");
         Line($"{Dim}{sep}{Rst}");
 
         // ── Skill rows ───────────────────────────────────────────────────────
         if (pageItems.Count == 0)
         {
-            var msg = !string.IsNullOrWhiteSpace(state.Search)
-                ? $"{Yel}  No skills match \"{Esc(state.Search)}\" — press Backspace to refine{Rst}"
-                : $"{Dim}  No skills found.{Rst}";
+            string msg;
+            if (!state.ShowTaps && state.TapCount > 0 && string.IsNullOrWhiteSpace(state.Search))
+                msg = $"{Yel}  All skills are from taps — press Tab to show them{Rst}";
+            else if (!string.IsNullOrWhiteSpace(state.Search))
+                msg = $"{Yel}  No skills match \"{Esc(state.Search)}\" — press Backspace to refine{Rst}";
+            else
+                msg = $"{Dim}  No skills found.{Rst}";
             Line(msg);
             for (var p = 1; p < PageSize; p++) Line("");
         }
@@ -245,11 +282,30 @@ internal static class SkillBrowserTui
                 var nameEnd = isCursor ? Rst  : "";
                 var name    = PadTrunc(skill.Name, nameColWidth);
 
+                // Source column: fixed width, no parentheses
+                var sourceCol = "";
+                if (hasTapSkills)
+                {
+                    if (skillSources != null &&
+                        skillSources.TryGetValue(skill.Name, out var src) &&
+                        src.StartsWith("tap:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var tapLabel = src["tap:".Length..];
+                        if (tapLabel.Length > SourceColWidth) tapLabel = tapLabel[..(SourceColWidth - 1)] + "…";
+                        sourceCol = $"  {Blue}{tapLabel,-SourceColWidth}{Rst}";
+                    }
+                    else
+                    {
+                        // Registry skill: dim placeholder so columns stay aligned
+                        sourceCol = $"  {Dim}{"registry",-SourceColWidth}{Rst}";
+                    }
+                }
+
                 var desc = string.IsNullOrWhiteSpace(skill.Description)
                     ? ""
                     : $"  {Dim}{Esc(Trunc(skill.Description, maxDesc))}{Rst}";
 
-                Line($" {arrow} {iconColor}{icon}{Rst}  {nameClr}{Esc(name)}{nameEnd}{desc}");
+                Line($" {arrow} {iconColor}{icon}{Rst}  {nameClr}{Esc(name)}{nameEnd}{sourceCol}{desc}");
             }
 
             for (var p = pageItems.Count; p < PageSize; p++) Line("");
@@ -263,7 +319,20 @@ internal static class SkillBrowserTui
         var pageHint   = totalPages > 1 ? $"  {Dim}PgUp/PgDn to page{Rst}" : "";
         var legend     = $"  {Dim}{Grn}✓{Rst}{Dim} installed  {Yel}↑{Rst}{Dim} update  {Blue}★{Rst}{Dim} recommended{Rst}";
 
-        Line($" {pageLabel}  {countLabel}{pageHint}{legend}");
+        string tapStatus;
+        if (hasTapSkills)
+        {
+            if (!state.ShowTaps)
+                tapStatus = state.TapCount > 0
+                    ? $"  {Yel}■ {state.TapCount} tap skill{(state.TapCount == 1 ? "" : "s")} hidden{Rst} {Dim}(Tab to show){Rst}"
+                    : $"  {Dim}Taps hidden{Rst} {Dim}(Tab to show){Rst}";
+            else
+                tapStatus = $"  {Dim}Tab: hide taps{Rst}";
+        }
+        else
+            tapStatus = "";
+
+        Line($" {pageLabel}  {countLabel}{pageHint}{tapStatus}{legend}");
 
         sb.Append("\x1b[J");
         Console.Write(sb);
@@ -271,6 +340,11 @@ internal static class SkillBrowserTui
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private static bool IsTapSkill(string name, Dictionary<string, string>? sources) =>
+        sources != null &&
+        sources.TryGetValue(name, out var src) &&
+        src.StartsWith("tap:", StringComparison.OrdinalIgnoreCase);
 
     private static (string icon, string color) GetStatusIcon(
         SkillMetadata              skill,

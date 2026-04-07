@@ -126,38 +126,54 @@ lorex create auth-logic -d "Token validation and session rules" -t "auth,securit
 
 ## `lorex install`
 
-Install one or more skills from the registry into this project.
+Install one or more skills from the registry, a tap, or directly from a URL.
 
 ```bash
-lorex install [<skill>...] [--all] [--recommended] [--search <text>] [--tag <tag>] [--global]
-lorex install                      # interactive picker
+lorex install [<skill|url>...] [--all] [--recommended] [--search <text>] [--tag <tag>] [--global]
+lorex install                      # interactive TUI picker
 ```
 
 ### Flags
 
 | Flag | Description |
 | :--- | :--- |
-| `<skill>...` | One or more skill names to install directly. |
-| `--all` | Install every skill in the registry that is not already installed. |
+| `<skill>...` | One or more skill names to install directly. Skills from taps are matched automatically. |
+| `<url>` | A git URL to install from directly — no tap registration required. Supports GitHub tree URLs (`https://github.com/owner/repo/tree/branch/path`). |
+| `--all` | Install every skill in the registry and all taps that is not already installed. |
 | `--recommended` | Install only skills recommended for this project (matched by tags). |
 | `--search <text>` | Pre-filter the interactive skill picker to skills whose name, description, or tags contain `<text>`. Only applies when no skill names or `--all`/`--recommended` flags are given. |
 | `--tag <tag>` | Pre-filter the interactive skill picker to skills with the exact tag `<tag>`. Only applies in interactive mode. |
 | `--global` | Install into `~/.lorex/skills/` and project into user-level agent locations. Requires `lorex init --global` to have been run first. |
 
-`--all` and `--recommended` cannot be used together. Neither can be combined with explicit skill names.
+`--all` and `--recommended` cannot be used together. Neither can be combined with explicit skill names or URLs.
 
 ### Interactive mode
 
 Running `lorex install` with no arguments opens a two-step flow:
 
-1. Lorex fetches the registry and asks: **Install recommended / Install all / Choose specific**
-2. If you choose "Choose specific":
-   - Lorex prompts for an optional search term (press Enter to browse all)
-   - Results are filtered and sorted with recommended skills at the top
-   - A scrollable multi-select lets you pick individual skills (20 visible at a time, scroll with ↑↓)
-   - Recommended skills are marked with a ★ badge
+1. Lorex fetches the registry and all taps, then asks: **Install recommended / Install all / Choose specific**
+2. If you choose "Choose specific", lorex opens a full-screen TUI:
+   - Type to filter by name, description, or tag in real time
+   - ↑↓ to navigate, Space to toggle selection, Enter to confirm, Esc to cancel
+   - Recommended skills float to the top with a ★ badge
+   - Skills from taps show a `(tapname)` attribution badge
+   - PgUp/PgDn to page through results
 
-Use `--search` or `--tag` flags to pre-populate the search and skip the prompt.
+Use `--search` or `--tag` flags to pre-populate the filter.
+
+### Direct URL install
+
+You can install a skill directly from any git repository without first adding a tap:
+
+```bash
+# Install a specific skill folder from a GitHub repo
+lorex install https://github.com/dotnet/skills/tree/main/auth-overview
+
+# The skill is copied as a local directory (not symlinked)
+# Its source URL is recorded in lorex.json for reference
+```
+
+If the URL points to a plain repo root with a single skill, lorex installs it automatically. If the repo contains multiple skills, lorex requires a specific path.
 
 ### Recommended matching
 
@@ -217,12 +233,26 @@ Adapter projections for the removed skill are cleaned up on the next `lorex refr
 
 ## `lorex list`
 
-Browse and filter skills available in the connected registry.
+Browse and filter skills available in the registry and all configured taps.
 
 ```bash
 lorex list [--search <text>] [--tag <tag>] [--page <n>] [--page-size <n>]
-lorex list                         # first page, 25 skills
+lorex list                         # interactive TUI browser (when run in a terminal)
 ```
+
+### Interactive TUI mode (default)
+
+When run in an interactive terminal without `--page`/`--page-size` flags, `lorex list` opens a full-screen browser:
+
+- Type to filter by name, description, or tag in real time
+- ↑↓ / PgUp / PgDn to navigate
+- Status icons: `✓` installed · `↑` update available · `★` recommended
+- Skills from taps show a `(tapname)` attribution badge
+- Esc clears the search filter; Enter or Esc with no filter exits
+
+### Non-interactive / piped mode
+
+Pass `--page`, `--page-size`, or pipe the output to get the classic paginated table.
 
 ### Flags
 
@@ -230,33 +260,30 @@ lorex list                         # first page, 25 skills
 | :--- | :--- |
 | `--search <text>` | Filter skills whose name, description, or tags contain `<text>` (case-insensitive). |
 | `--tag <tag>` | Filter skills with the exact tag `<tag>` (case-insensitive). Can be combined with `--search`. |
-| `--page <n>` | Page number to display (1-based, default: 1). |
-| `--page-size <n>` | Skills per page (default: 25). Use `0` to disable pagination and show all results. |
+| `--page <n>` | Page number to display (1-based, default: 1). Enables non-interactive table output. |
+| `--page-size <n>` | Skills per page (default: 25). Use `0` to disable pagination and show all results. Enables non-interactive table output. |
 
-Shows a table with columns: **Skill**, **Description**, **Version**, **Tags**, **Status**.
-
-Status values:
+Table status values:
 - `installed` (green) — already in this project
 - `update available` (yellow) — installed but the registry has a newer version
 - `recommended` (blue) — not installed but tags match this project
 - `available` (dim) — available but not recommended
 
-Recommended skills appear at the top of each page. A summary line shows `Showing X–Y of Z skills` and a pagination hint appears when there are more pages.
-
 ### Examples
 
 ```bash
-lorex list                         # first 25 skills
-lorex list --search auth           # filter by name/description/tag
-lorex list --tag dotnet            # skills tagged "dotnet"
-lorex list --page 2                # second page
-lorex list --page-size 50          # larger page
-lorex list --page-size 0           # all results, no pagination
-lorex list --search auth --page-size 0  # all matching results
+lorex list                         # interactive TUI
+lorex list --search auth           # TUI pre-filtered to "auth"
+lorex list --tag dotnet            # TUI pre-filtered by tag
+lorex list --page 2                # table, second page
+lorex list --page-size 50          # table, larger page
+lorex list --page-size 0           # table, all results
+lorex list --search auth --page-size 0  # table, all matching results
+lorex list | grep auth             # piped (table mode, no paging)
 ```
 
-::: info Registry required
-`lorex list` requires a registry. In local-only mode it prints a message and exits.
+::: info Registry or tap required
+`lorex list` requires a registry or at least one configured tap. In local-only mode it prints a message and exits.
 :::
 
 ---
@@ -324,7 +351,8 @@ lorex sync [--global]
 1. Fetches the registry (runs `git pull` on the local cache)
 2. Refreshes the cached registry policy in `lorex.json`
 3. Because installed skills are directory symlinks into the cache, they immediately reflect new content
-4. Runs `lorex refresh` if any skills were updated
+4. Syncs all configured taps (`git pull` on each tap cache)
+5. Runs `lorex refresh` if any skills were updated
 
 ### Overwrite protection
 
@@ -449,6 +477,88 @@ lorex refresh [--target <adapter>]
 lorex refresh                      # all adapters
 lorex refresh --target cursor      # cursor only
 lorex refresh -t claude            # claude only
+```
+
+---
+
+## `lorex tap`
+
+Manage read-only skill sources (taps). A tap is any git repository containing skills — no lorex registry setup required.
+
+```bash
+lorex tap add    <url> [--name <name>] [--root <path>]
+lorex tap remove <name>
+lorex tap list
+lorex tap sync   [<name>]
+```
+
+Taps are project-level: each `.lorex/lorex.json` has its own list. The git clone cache at `~/.lorex/taps/<slug>/` is global and shared across all projects using the same tap URL.
+
+### `lorex tap add`
+
+```bash
+lorex tap add <url> [--name <name>] [--root <path>]
+```
+
+| Argument / Flag | Description |
+| :--- | :--- |
+| `<url>` | Git URL of the tap repository (HTTPS or SSH). |
+| `--name <name>` | Short identifier for the tap. Defaults to the repository owner (e.g. `dotnet` from `github.com/dotnet/skills`). |
+| `--root <path>` | Subdirectory within the repo to search for skills. By default lorex checks for a `skills/` subdirectory and falls back to the repo root. |
+
+On `lorex tap add`, lorex:
+1. Shallow-clones the repository to `~/.lorex/taps/<slug>/`
+2. Discovers all skills (validates at least one `SKILL.md` is found)
+3. Records the tap in `.lorex/lorex.json`
+
+If no skills are found, the command fails with an error and the config is not modified.
+
+```bash
+# Add a tap using the default name (derived from repo owner)
+lorex tap add https://github.com/dotnet/skills
+
+# Explicit name
+lorex tap add https://github.com/dotnet/skills --name dotnet
+
+# Repo where skills live in a subdirectory
+lorex tap add https://github.com/my-org/monorepo --root tools/skills --name my-org
+```
+
+### `lorex tap remove`
+
+```bash
+lorex tap remove <name>
+```
+
+Removes the tap entry from `.lorex/lorex.json`. The global cache (`~/.lorex/taps/<slug>/`) is kept intact — other projects using the same tap URL continue to work without re-cloning.
+
+### `lorex tap list`
+
+```bash
+lorex tap list
+```
+
+Shows a table of configured taps: name, URL, skill count, root, and cache status.
+
+### `lorex tap sync`
+
+```bash
+lorex tap sync           # sync all taps
+lorex tap sync dotnet    # sync one tap by name
+```
+
+Runs `git pull` on the specified tap cache(s). Skills installed from taps are symlinked, so they reflect the latest content immediately after sync.
+
+`lorex sync` (without `tap`) also syncs all taps alongside the primary registry.
+
+### After adding a tap
+
+Skills from the tap immediately appear in `lorex list` and `lorex install` alongside registry skills, with a `(tapname)` attribution badge.
+
+```bash
+lorex tap add https://github.com/dotnet/skills --name dotnet
+lorex list                   # see dotnet skills with (dotnet) badge
+lorex install                # pick from registry + tap skills in the TUI
 ```
 
 ---

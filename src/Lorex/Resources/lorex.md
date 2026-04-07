@@ -29,16 +29,20 @@ Lorex commands resolve the project root by walking up from the current working d
 |---|---|---|
 | `init` | `lorex init [<url>] [--local] [--global] [--adapters a,b]` | Set up lorex in a project (or globally with `--global`) and load or initialize the registry policy |
 | `create` | `lorex create [<name>] [-d desc] [-t tags] [-o owner]` | Scaffold a new local skill |
-| `install` | `lorex install [<skill>…] [--all] [--recommended] [--search <text>] [--tag <tag>] [--global]` | Install skills from the registry into this project or globally |
+| `install` | `lorex install [<skill\|url>…] [--all] [--recommended] [--search <text>] [--tag <tag>] [--global]` | Install skills from the registry, a tap, or directly from a URL |
 | `uninstall` | `lorex uninstall [<skill>…] [--all]` | Remove installed skills from this project |
-| `list` | `lorex list [--search <text>] [--tag <tag>] [--page <n>] [--page-size <n>]` | Browse and filter skills available in the registry |
+| `list` | `lorex list [--search <text>] [--tag <tag>] [--page <n>] [--page-size <n>]` | Browse and filter skills available in the registry and all taps |
 | `status` | `lorex status` | Show installed skills, registry state, and adapter targets |
-| `sync` | `lorex sync [--global]` | Pull the latest versions and registry policy from the registry |
+| `sync` | `lorex sync [--global]` | Pull the latest versions from the registry and all taps |
 | `publish` | `lorex publish [<skill>…]` | Contribute local skills using the registry's publish policy |
 | `registry` | `lorex registry` | Interactively update the connected registry's publish policy |
 | `refresh` | `lorex refresh [--target adapter]` | Re-project skills into native agent locations after skill edits |
+| `tap add` | `lorex tap add <url> [--name <name>] [--root <path>]` | Add a read-only skill source (any git repo) |
+| `tap remove` | `lorex tap remove <name>` | Remove a tap |
+| `tap list` | `lorex tap list` | List configured taps with skill counts |
+| `tap sync` | `lorex tap sync [<name>]` | Pull the latest content from all taps or a specific one |
 
-`list`, `install`, `sync`, `publish`, and `registry` require a registry. `create`, `status`, and `refresh` work in local-only mode.
+`list`, `install`, `sync`, `publish`, and `registry` require a registry or at least one tap. `create`, `status`, and `refresh` work in local-only mode. Tap commands work independently of the primary registry.
 
 Running `lorex init` with no arguments opens a guided setup flow:
 
@@ -48,9 +52,35 @@ Running `lorex init` with no arguments opens a guided setup flow:
 
 When a connected registry already has skills that this project does not have installed, `lorex init` finishes by pointing users to `lorex install --recommended` or `lorex list`, and reminds them to use `lorex sync` later to refresh installed shared skills.
 
-Running `lorex install` with no skill names opens an interactive flow where users can install recommended skills, install everything, or choose a subset. If "Choose specific" is selected, lorex prompts for an optional search term, filters and sorts results (recommended first, marked with ★), then shows a scrollable multi-select (20 items visible at a time). Use `--search <text>` or `--tag <tag>` to pre-populate the search and skip the prompt. Recommendations are based on exact tag matches against the current repo slug like `owner/repo`, or the folder name if no git slug is available. `lorex uninstall` similarly supports `--all` or an interactive flow to remove all installed skills or choose a subset.
+Running `lorex install` with no skill names opens an interactive flow where users can install recommended skills, install everything, or choose a subset. If "Choose specific" is selected, lorex opens a full-screen TUI with live typing-to-filter, paging, and multi-select (Space to toggle, Enter to confirm). Skills from taps are shown with a `(tapname)` badge. Use `--search <text>` or `--tag <tag>` to pre-populate the filter. You can also pass a URL directly: `lorex install https://github.com/owner/repo/tree/main/skill-name` installs a skill from any git repository without adding a tap. Recommendations are based on exact tag matches against the current repo slug like `owner/repo`, or the folder name if no git slug is available. `lorex uninstall` similarly supports `--all` or an interactive flow.
 
-`lorex list` supports `--search <text>`, `--tag <tag>`, `--page <n>`, and `--page-size <n>` (default 25; use 0 for all) to filter and paginate the registry skill table from the command line.
+`lorex list` opens an interactive TUI browser when run in a terminal (live search, paging with PgUp/PgDn, status icons). Pass `--page`/`--page-size` or pipe output to get the classic paginated table. Supports `--search <text>`, `--tag <tag>`, `--page <n>`, and `--page-size <n>` (default 25; use 0 for all).
+
+## Taps
+
+Taps are read-only skill sources — any git repository containing skills. Unlike the primary registry, taps have no publish policy; they are always read-only from lorex's perspective.
+
+```sh
+# Add a tap (clones and validates at least one skill is found)
+lorex tap add https://github.com/dotnet/skills
+
+# With an explicit name and optional root subdirectory
+lorex tap add https://github.com/dotnet/skills --name dotnet --root skills/
+
+# Skills from taps appear in lorex list and lorex install alongside registry skills
+lorex list
+lorex install
+
+# Keep taps up to date
+lorex tap sync            # sync all taps
+lorex tap sync dotnet     # sync one tap
+lorex sync                # also syncs all taps alongside the primary registry
+
+# Remove a tap (local cache is kept for other projects)
+lorex tap remove dotnet
+```
+
+Tap caches live at `~/.lorex/taps/<slug>/` and are shared across all projects on the machine. Skills installed from taps are symlinked (like registry skills) so `lorex sync` keeps them current automatically.
 
 If a registry install or sync would replace an existing local skill directory in `.lorex/skills`, lorex asks for explicit approval per skill before overwriting it.
 

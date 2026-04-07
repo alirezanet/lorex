@@ -3,9 +3,9 @@ using Lorex.Core.Models;
 namespace Lorex.Core.Services;
 
 /// <summary>
-/// Reads registry skill metadata and computes install/recommendation views for a project.
+/// Reads registry and tap skill metadata and computes install/recommendation views for a project.
 /// </summary>
-public sealed class RegistrySkillQueryService(RegistryService registry, GitService git)
+public sealed class RegistrySkillQueryService(RegistryService registry, GitService git, TapService taps)
 {
     public IReadOnlyList<SkillMetadata> ListAvailableSkills(LorexConfig config, bool refresh = true)
     {
@@ -52,6 +52,48 @@ public sealed class RegistrySkillQueryService(RegistryService registry, GitServi
         return [.. keys
             .Where(key => !string.IsNullOrWhiteSpace(key))
             .Distinct(StringComparer.OrdinalIgnoreCase)];
+    }
+
+    /// <summary>
+    /// Returns all skills from the primary registry and all configured taps, together with a source map.
+    /// Primary registry wins over taps on name conflicts; taps are queried in config order (first wins).
+    /// Source values: <c>"registry"</c> or <c>"tap:&lt;name&gt;"</c>.
+    /// </summary>
+    public (IReadOnlyList<SkillMetadata> Skills, Dictionary<string, string> Sources) ListAllSkills(
+        LorexConfig config,
+        bool refresh = true)
+    {
+        var seen    = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var result  = new List<SkillMetadata>();
+        var sources = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        // Primary registry first (wins on conflicts)
+        if (config.Registry is not null)
+        {
+            foreach (var skill in registry.ListAvailableSkills(config.Registry.Url, refresh))
+            {
+                if (seen.Add(skill.Name))
+                {
+                    result.Add(skill);
+                    sources[skill.Name] = "registry";
+                }
+            }
+        }
+
+        // Taps in config order (first tap wins over later taps for the same skill name)
+        foreach (var tap in config.Taps)
+        {
+            foreach (var skill in taps.ListTapSkills(tap))
+            {
+                if (seen.Add(skill.Name))
+                {
+                    result.Add(skill);
+                    sources[skill.Name] = $"tap:{tap.Name}";
+                }
+            }
+        }
+
+        return (result, sources);
     }
 
     /// <summary>
