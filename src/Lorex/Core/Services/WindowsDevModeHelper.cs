@@ -27,23 +27,63 @@ internal static class WindowsDevModeHelper
     }
 
     /// <summary>
+    /// Ensures symlinks are available. If Developer Mode is not enabled, opens the
+    /// Windows Settings page directly and waits for the user to toggle it on.
+    /// Returns true when the caller should continue. Throws on user cancellation.
+    /// </summary>
+    public static bool EnsureSymlinkOrElevate()
+    {
+        if (IsSymlinkAvailable())
+            return true;
+
+        if (!OperatingSystem.IsWindows())
+            return true;
+
+        AnsiConsole.MarkupLine("[yellow bold]Symlinks require Windows Developer Mode.[/]");
+        AnsiConsole.MarkupLine("[dim]Opening the Settings page — toggle [bold]Developer Mode[/] on, then come back here.[/]");
+        AnsiConsole.WriteLine();
+
+        try
+        {
+            Process.Start(new ProcessStartInfo("ms-settings:developers") { UseShellExecute = true });
+        }
+        catch
+        {
+            AnsiConsole.MarkupLine("[red]Could not open Settings automatically.[/]");
+            AnsiConsole.MarkupLine("[dim]Open [bold]Settings → System → For developers[/] and enable Developer Mode manually.[/]");
+        }
+
+        AnsiConsole.MarkupLine("[dim]Press [bold]Enter[/] once Developer Mode is enabled…[/]");
+        Console.ReadLine();
+
+        // Clear the cached check so we re-probe.
+        _cached = null;
+
+        if (!IsSymlinkAvailable())
+        {
+            AnsiConsole.MarkupLine("[red]Developer Mode is still not detected.[/]");
+            AnsiConsole.MarkupLine("[dim]Make sure the toggle is on, then try again.[/]");
+            throw new OperationCanceledException("Symlinks are required. Enable Developer Mode and re-run the command.");
+        }
+
+        AnsiConsole.MarkupLine("[green]✓[/] Developer Mode detected — continuing.");
+        return true;
+    }
+
+    /// <summary>
     /// Prints a formatted message explaining that Developer Mode is off,
-    /// with step-by-step instructions to enable it.
+    /// with step-by-step instructions to enable it manually.
     /// </summary>
     public static void PrintDevModeGuidance()
     {
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("[yellow bold]Symlinks require Windows Developer Mode[/]");
-        AnsiConsole.MarkupLine("[dim]Without Developer Mode, lorex falls back to copying skill files.");
-        AnsiConsole.MarkupLine("Copied skills do [bold]not[/] auto-update when you run [bold]lorex sync[/].[/]");
+        AnsiConsole.MarkupLine("[dim]Without Developer Mode, lorex cannot create symlinks for shared skills.[/]");
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("[bold]To enable Developer Mode:[/]");
         AnsiConsole.MarkupLine("  1. Open [bold]Settings[/] → [bold]System[/] → [bold]For developers[/]");
         AnsiConsole.MarkupLine("  2. Toggle [bold]Developer Mode[/] on");
-        AnsiConsole.MarkupLine("  3. Re-run [bold]lorex install[/] to replace copies with symlinks");
-        AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine("[dim]Or open the settings page now:[/]");
-        AnsiConsole.MarkupLine("  [bold]ms-settings:developers[/]");
+        AnsiConsole.MarkupLine("  3. Re-run the lorex command");
         AnsiConsole.WriteLine();
     }
 
@@ -62,70 +102,11 @@ internal static class WindowsDevModeHelper
             {
                 UseShellExecute = true
             });
-            AnsiConsole.MarkupLine("[dim]Settings page opened. Enable Developer Mode, then re-run [bold]lorex install[/].[/]");
+            AnsiConsole.MarkupLine("[dim]Settings page opened. Enable Developer Mode, then re-run the command.[/]");
         }
         catch
         {
             AnsiConsole.MarkupLine("[dim]Could not open Settings automatically. Navigate there manually.[/]");
-        }
-    }
-
-    /// <summary>
-    /// Checks if symlinks are available. If not (Windows without Developer Mode and not elevated),
-    /// offers to re-launch the current command as Administrator via UAC.
-    /// Returns true if the caller should continue (symlinks available or already elevated).
-    /// Returns false if an elevated process was launched (caller should exit with code 0).
-    /// Throws if the user declines elevation.
-    /// </summary>
-    public static bool EnsureSymlinkOrElevate()
-    {
-        if (IsSymlinkAvailable())
-            return true;
-
-        if (!OperatingSystem.IsWindows())
-            return true;
-
-        AnsiConsole.MarkupLine("[yellow bold]Symlinks are required but not available.[/]");
-        AnsiConsole.MarkupLine("[dim]Windows requires Administrator privileges or Developer Mode to create symlinks.[/]");
-        AnsiConsole.WriteLine();
-
-        var elevate = AnsiConsole.Confirm("[bold]Re-run this command as Administrator?[/]", defaultValue: true);
-        if (!elevate)
-        {
-            PrintDevModeGuidance();
-            throw new OperationCanceledException("Symlinks are required. Enable Developer Mode or run as Administrator.");
-        }
-
-        RelaunchElevated();
-        return false;
-    }
-
-    /// <summary>
-    /// Re-launches the current process with Administrator privileges via UAC.
-    /// The current process should exit after calling this.
-    /// </summary>
-    private static void RelaunchElevated()
-    {
-        var exePath = Environment.ProcessPath
-            ?? throw new InvalidOperationException("Cannot determine the current executable path.");
-
-        var arguments = string.Join(' ', Environment.GetCommandLineArgs().Skip(1));
-
-        try
-        {
-            var psi = new ProcessStartInfo(exePath, arguments)
-            {
-                UseShellExecute = true,
-                Verb = "runas",
-            };
-
-            var process = Process.Start(psi);
-            process?.WaitForExit();
-        }
-        catch (System.ComponentModel.Win32Exception)
-        {
-            // User declined UAC prompt
-            throw new OperationCanceledException("Administrator privileges are required for symlinks. Operation cancelled.");
         }
     }
 

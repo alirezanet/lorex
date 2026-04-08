@@ -17,10 +17,7 @@ public static class SyncCommand
             string.Equals(a, "-g",       StringComparison.OrdinalIgnoreCase));
 
         if (isGlobal && OperatingSystem.IsWindows() && !WindowsDevModeHelper.IsSymlinkAvailable())
-        {
-            if (!WindowsDevModeHelper.EnsureSymlinkOrElevate())
-                return 0; // elevated process was launched
-        }
+            WindowsDevModeHelper.EnsureSymlinkOrElevate();
 
         var projectRoot = isGlobal
             ? GlobalRootLocator.ResolveForExistingGlobal(homeRoot)
