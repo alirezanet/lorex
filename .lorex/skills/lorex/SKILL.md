@@ -41,6 +41,7 @@ Lorex commands resolve the project root by walking up from the current working d
 | `tap remove` | `lorex tap remove <name> [-g\|--global]` | Remove a tap |
 | `tap list` | `lorex tap list [-g\|--global]` | List configured taps with skill counts |
 | `tap sync` | `lorex tap sync [<name>] [-g\|--global]` | Pull the latest content from all taps or a specific one |
+| `tap promote` | `lorex tap promote [<name>]` | Add tap(s) to registry recommended taps (requires a registry) |
 
 `list`, `install`, `sync`, `publish`, and `registry` require a registry or at least one tap. `create`, `status`, and `refresh` work in local-only mode. Tap commands work independently of the primary registry.
 
