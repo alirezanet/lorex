@@ -13,7 +13,7 @@ internal static class HelpPrinter
     /// <param name="options">Option rows shown in an OPTIONS section. Null = section omitted.</param>
     /// <param name="examples">Example rows. Empty <c>Comment</c> = no comment line printed. Null = section omitted.</param>
     /// <param name="subcommands">Subcommand rows shown in a SUBCOMMANDS section before OPTIONS. Null = section omitted.</param>
-    public static int Print(
+    internal static int Print(
         string usage,
         string description,
         (string Flags, string Description)[]? options = null,
@@ -25,8 +25,8 @@ internal static class HelpPrinter
         AnsiConsole.WriteLine();
 
         AnsiConsole.MarkupLine("[bold]DESCRIPTION[/]");
-        foreach (var line in description.Split('\n'))
-            AnsiConsole.MarkupLine("  {0}", Markup.Escape(line.TrimEnd()));
+        foreach (var line in description.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+            AnsiConsole.MarkupLine("  {0}", Markup.Escape(line));
         AnsiConsole.WriteLine();
 
         if (subcommands is { Length: > 0 })
