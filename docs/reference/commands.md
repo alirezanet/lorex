@@ -17,7 +17,7 @@ lorex <command> --help
 Set up Lorex in a project, configure a registry, and choose which AI agent adapters to maintain.
 
 ```bash
-lorex init [<url|path>] [--local] [--adapters <a,b,...>] [-g|--global]
+lorex init [<url|path>] [--local] [--adapters <a,b,...>] [--install-recommended-taps] [-g|--global]
 lorex init                         # guided interactive setup
 lorex init --global [<url|path>]   # user-level (global) setup
 lorex init --help                  # show command help
@@ -31,6 +31,7 @@ lorex init --help                  # show command help
 | `--local` | — | Set up without a registry. Skills are project-local only. |
 | `--global` | `-g` | Initialise global lorex at `~/.lorex/` instead of the current project. Skills are projected into user-level agent locations (`~/.claude/skills`, `~/.gemini/settings.json`, etc.). |
 | `--adapters <list>` | `-a` | Comma-separated list of adapters. Skips the adapter prompt. |
+| `--install-recommended-taps` | — | Automatically install all recommended taps from the registry. Useful for CI/scripted setups. In interactive mode, taps are prompted for instead. |
 | `--help` | `-h` | Show command-specific help and exit. |
 
 ### Interactive flow
@@ -77,6 +78,9 @@ lorex init --local --adapters claude,copilot
 
 # CI / scripted use
 lorex init https://github.com/your-org/ai-skills.git -a codex,claude
+
+# CI / scripted use — also install recommended taps from the registry
+lorex init https://github.com/your-org/ai-skills.git -a claude --install-recommended-taps
 
 # Global (user-level) setup — works from any directory
 lorex init --global https://github.com/your-org/ai-skills.git --adapters claude,gemini

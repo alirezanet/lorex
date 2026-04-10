@@ -1,3 +1,5 @@
+using Lorex.Core.Models;
+
 namespace Lorex.Tests.Integration;
 
 /// <summary>Integration tests for tap-based lorex flows using local git repos as fake taps.</summary>
@@ -179,5 +181,37 @@ public sealed class TapFlowTests
         var exit = h.Run("tap", "promote", "my-tap");
 
         Assert.NotEqual(0, exit);
+    }
+
+    [Fact]
+    public void Init_InstallRecommendedTaps_AddsRecommendedTapsFromRegistry()
+    {
+        using var h = new LorexTestHarness();
+        var tapRepo = h.CreateRegistry(skillNames: ["tap-skill-a", "tap-skill-b"]);
+        var registry = h.CreateRegistry(
+            skillNames: ["reg-skill"],
+            recommendedTaps: [new TapConfig { Name = "rec-tap", Url = tapRepo }]);
+
+        var exit = h.Run("init", registry, "--adapters", "claude", "--install-recommended-taps");
+
+        Assert.Equal(0, exit);
+        var config = h.ReadConfig();
+        Assert.Single(config.Taps, t => t.Name == "rec-tap");
+    }
+
+    [Fact]
+    public void Init_WithoutFlag_DoesNotInstallRecommendedTapsNonInteractive()
+    {
+        using var h = new LorexTestHarness();
+        var tapRepo = h.CreateRegistry(skillNames: ["tap-skill"]);
+        var registry = h.CreateRegistry(
+            skillNames: ["reg-skill"],
+            recommendedTaps: [new TapConfig { Name = "rec-tap", Url = tapRepo }]);
+
+        var exit = h.Run("init", registry, "--adapters", "claude");
+
+        Assert.Equal(0, exit);
+        var config = h.ReadConfig();
+        Assert.Empty(config.Taps);
     }
 }

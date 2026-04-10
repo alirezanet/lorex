@@ -15,7 +15,7 @@ public static class InitCommand
 
     /// <summary>Runs the command. Returns 0 on success, 1 on failure.</summary>
     /// <remarks>
-    /// Non-interactive usage: <c>lorex init &lt;url&gt; [--adapters copilot,codex]</c><br/>
+    /// Non-interactive usage: <c>lorex init &lt;url&gt; [--adapters copilot,codex] [--install-recommended-taps]</c><br/>
     /// Local-only (no registry): <c>lorex init --local [--adapters copilot,codex]</c><br/>
     /// Global (user-level) usage: <c>lorex init --global [&lt;url&gt;] [--adapters a,b]</c><br/>
     /// Interactive usage:     <c>lorex init</c> (guided setup for registry and adapters)
@@ -40,6 +40,7 @@ public static class InitCommand
         string? urlArg = null;
         string[]? adapterArg = null;
         bool localOnly = false;
+        bool installRecommendedTaps = false;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -47,6 +48,8 @@ public static class InitCommand
                 adapterArg = args[++i].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             else if (args[i] == "--local")
                 localOnly = true;
+            else if (args[i] == "--install-recommended-taps")
+                installRecommendedTaps = true;
             else if (!args[i].StartsWith('-'))
                 urlArg = args[i];
         }
@@ -232,7 +235,7 @@ public static class InitCommand
         }
 
         // ── Recommended taps from the registry ───────────────────────────────
-        if (!Console.IsInputRedirected && registryPolicy is { RecommendedTaps: { Length: > 0 } recommendedTaps })
+        if (registryPolicy is { RecommendedTaps: { Length: > 0 } recommendedTaps })
         {
             config = ServiceFactory.Skills.ReadConfig(projectRoot);
             var configuredUrls = new HashSet<string>(config.Taps.Select(t => t.Url), StringComparer.OrdinalIgnoreCase);
@@ -240,21 +243,36 @@ public static class InitCommand
 
             if (newTaps.Count > 0)
             {
-                AnsiConsole.WriteLine();
-                var tapPrompt = new MultiSelectionPrompt<TapConfig>()
-                    .Title("[bold]This registry recommends tap sources. Which do you want to add?[/]")
-                    .InstructionsText("[dim](Space to toggle, Enter to confirm, Enter with none = skip)[/]")
-                    .NotRequired()
-                    .UseConverter(t =>
-                        $"[bold]{Markup.Escape(t.Name)}[/] [dim]— {Markup.Escape(t.Url)}" +
-                        (t.Root is not null ? $" ({Markup.Escape(t.Root)})" : "") + "[/]")
-                    .AddChoices(newTaps);
+                List<TapConfig> selectedTaps;
 
-                // Pre-select all recommended taps — user deselects what they don't want
-                foreach (var tap in newTaps)
-                    tapPrompt.Select(tap);
+                if (installRecommendedTaps)
+                {
+                    // Non-interactive: install all recommended taps automatically
+                    selectedTaps = newTaps;
+                }
+                else if (!Console.IsInputRedirected)
+                {
+                    // Interactive: let the user pick which taps to add
+                    AnsiConsole.WriteLine();
+                    var tapPrompt = new MultiSelectionPrompt<TapConfig>()
+                        .Title("[bold]This registry recommends tap sources. Which do you want to add?[/]")
+                        .InstructionsText("[dim](Space to toggle, Enter to confirm, Enter with none = skip)[/]")
+                        .NotRequired()
+                        .UseConverter(t =>
+                            $"[bold]{Markup.Escape(t.Name)}[/] [dim]— {Markup.Escape(t.Url)}" +
+                            (t.Root is not null ? $" ({Markup.Escape(t.Root)})" : "") + "[/]")
+                        .AddChoices(newTaps);
 
-                var selectedTaps = AnsiConsole.Prompt(tapPrompt);
+                    // Pre-select all recommended taps — user deselects what they don't want
+                    foreach (var tap in newTaps)
+                        tapPrompt.Select(tap);
+
+                    selectedTaps = AnsiConsole.Prompt(tapPrompt);
+                }
+                else
+                {
+                    selectedTaps = [];
+                }
 
                 foreach (var tap in selectedTaps)
                 {
