@@ -7,13 +7,18 @@ namespace Lorex.Commands;
 /// <summary>Implements <c>lorex publish [skill…]</c>: pushes locally authored skills to the registry, then replaces them with symlinks.</summary>
 public static class PublishCommand
 {
+    private const string GlobalFlag = "--global";
+
     /// <summary>Runs the command. Returns 0 on success, 1 if any publish failed.</summary>
-    public static int Run(string[] args, string? cwd = null)
+    public static int Run(string[] args, string? cwd = null, string? homeRoot = null)
     {
         if (args.Any(a => a is "--help" or "-h"))
             return PrintHelp();
 
-        var projectRoot = ProjectRootLocator.ResolveForExistingProject(cwd ?? Directory.GetCurrentDirectory());
+        var isGlobal = WantsGlobal(args);
+        var projectRoot = isGlobal
+            ? GlobalRootLocator.ResolveForExistingGlobal(homeRoot)
+            : ProjectRootLocator.ResolveForExistingProject(cwd ?? Directory.GetCurrentDirectory());
         var builtIns = BuiltInSkillService.SkillNames().ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         if (!RegistryCommandSupport.TryRefreshConfiguredRegistry(projectRoot, out var config))
@@ -21,11 +26,15 @@ public static class PublishCommand
 
         List<string> toPublish;
 
-        if (args.Length > 0)
+        var skillArgs = args.Where(a => !string.IsNullOrWhiteSpace(a) &&
+                                        !string.Equals(a, GlobalFlag,  StringComparison.OrdinalIgnoreCase) &&
+                                        !string.Equals(a, "-g",        StringComparison.OrdinalIgnoreCase)).ToArray();
+
+        if (skillArgs.Length > 0)
         {
             // Names supplied on the command line
             toPublish = [];
-            foreach (var arg in args.Where(a => !string.IsNullOrWhiteSpace(a)))
+            foreach (var arg in skillArgs)
             {
                 if (builtIns.Contains(arg))
                 {
@@ -38,16 +47,16 @@ public static class PublishCommand
         }
         else
         {
-            // Interactive multi-select
-            var local = ServiceFactory.Skills.LocalOnlySkills(projectRoot).ToArray();
+            // Interactive multi-select: local skills + registry-installed skills with uncommitted changes
+            var publishable = ServiceFactory.Skills.PublishableSkills(projectRoot, ServiceFactory.Git).ToArray();
 
-            if (local.Length == 0)
+            if (publishable.Length == 0)
             {
-                AnsiConsole.MarkupLine("[red]No local skills to publish.[/] Ask your AI agent to create one, or run [bold]lorex create[/] to scaffold it.");
+                AnsiConsole.MarkupLine("[red]No skills with pending changes to publish.[/] Edit a skill or run [bold]lorex create[/] to scaffold a new one.");
                 return 1;
             }
 
-            var metadata = SkillPickerTui.ReadInstalledMetadata(projectRoot, local);
+            var metadata = SkillPickerTui.ReadInstalledMetadata(projectRoot, publishable);
             toPublish = SkillPickerTui.Run(metadata, [], title: "Publish Skills");
 
             if (toPublish.Count == 0)
@@ -62,10 +71,13 @@ public static class PublishCommand
         {
             try
             {
-                // Version bump check: warn if local version matches what's already in the registry
+                // Version bump check: warn if local version matches what's already in the registry.
+                // Skip for registry-installed (symlinked) skills — the local path and registry path
+                // resolve to the same file, so the comparison would always be a false positive.
                 var localSkillDir = ServiceFactory.Skills.SkillDir(projectRoot, skillName);
+                var isRegistryLinked = new DirectoryInfo(localSkillDir).LinkTarget is not null;
                 var localEntryPath = Core.Services.SkillFileConvention.ResolveEntryPath(localSkillDir);
-                if (localEntryPath is not null)
+                if (!isRegistryLinked && localEntryPath is not null)
                 {
                     string? localVersion = null;
                     try { localVersion = Core.Serialization.SimpleYamlParser.ParseSkillMetadataFromMarkdown(File.ReadAllText(localEntryPath)).Version; }
@@ -140,17 +152,23 @@ public static class PublishCommand
         return failed ? 1 : 0;
     }
 
+    private static bool WantsGlobal(string[] args) =>
+        args.Any(a => string.Equals(a, GlobalFlag, StringComparison.OrdinalIgnoreCase) ||
+                      string.Equals(a, "-g",       StringComparison.OrdinalIgnoreCase));
+
     private static int PrintHelp() => HelpPrinter.Print(
-        "lorex publish [<skill>…]",
+        "lorex publish [<skill>…] [-g]",
         "Push local skills to the registry. Running without arguments opens an interactive picker.\nDirect registries publish immediately; pull-request registries prepare a review branch.",
         options:
         [
-            ("<skill>…",   "Skill names to publish"),
-            ("-h, --help", "Show this help"),
+            ("<skill>…",      "Skill names to publish"),
+            ("-g, --global",  "Operate on the global lorex root (~/.lorex)"),
+            ("-h, --help",    "Show this help"),
         ],
         examples:
         [
-            ("Interactive picker",       "lorex publish"),
-            ("Publish a specific skill", "lorex publish my-skill"),
+            ("Interactive picker",              "lorex publish"),
+            ("Publish a specific skill",        "lorex publish my-skill"),
+            ("Publish from global lorex root",  "lorex publish -g"),
         ]);
 }

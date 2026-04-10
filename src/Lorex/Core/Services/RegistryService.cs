@@ -356,6 +356,14 @@ public sealed class RegistryService(GitService git)
         }
 
         git.FetchBranchToRemoteTracking(cacheDir, "origin", defaultBranch);
+
+        // Skip the checkout when the working tree has local edits (e.g. a skill the user is
+        // authoring in-place). The fetch above already updated remote tracking refs so all
+        // read operations (FindSkillPath, ListAvailableSkills, …) continue to work against the
+        // current cache state. The user should run `lorex publish` then `lorex sync` to resync.
+        if (git.HasTrackedChanges(cacheDir))
+            return;
+
         git.CheckoutResetToRemoteBranch(cacheDir, "origin", defaultBranch);
     }
 

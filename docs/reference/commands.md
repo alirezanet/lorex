@@ -406,6 +406,21 @@ Sync will replace local skill auth-logic with the registry version. Continue?
 
 Skills you decline to overwrite are skipped and reported at the end.
 
+### Dirty registry cache
+
+If you have edited a registry-installed (symlinked) skill in place, those changes live directly in the local registry cache. Lorex detects uncommitted tracked changes before pulling and prompts you:
+
+```
+⚠  Registry cache has uncommitted changes:
+  • datacore-athena  →  publish: lorex publish -g datacore-athena
+
+What would you like to do?
+> Keep my changes (cancel sync)
+  Discard changes and sync
+```
+
+Choose **Keep my changes** to cancel sync and run the suggested publish command first. Choose **Discard changes and sync** to revert your edits and continue the sync.
+
 ### Examples
 
 ```bash
@@ -421,28 +436,37 @@ lorex sync --global      # sync globally installed skills
 
 ## `lorex publish`
 
-Contribute a locally authored skill to the registry.
+Contribute a skill to the registry — either a locally authored skill or a registry-installed skill you have edited in place.
 
 ```bash
-lorex publish [<skill>...]
-lorex publish                      # interactive multi-select
+lorex publish [<skill>...]          # project skills
+lorex publish -g [<skill>...]       # globally installed skills
+lorex publish                       # interactive multi-select
 ```
-
-Only skills with link type `local` (real directories, not symlinks) can be published. Registry-backed symlinks and built-in skills cannot be published.
 
 ### Flags
 
 | Flag | Short | Description |
 | :--- | :--- | :--- |
+| `--global` | `-g` | Publish from the global lorex root (`~/.lorex/`) instead of the current project. |
 | `--help` | `-h` | Show command-specific help and exit. |
+
+### Which skills can be published
+
+`lorex publish` surfaces two categories of skills:
+
+- **Locally authored skills** (link type `local` in `lorex status`) — real directories you created with `lorex create`.
+- **Registry-installed skills with local edits** (link type `symlink`) — skills whose files in the registry cache have uncommitted changes. Because the symlink points directly into the local cache, editing the skill file edits the cache, and publish commits and pushes those changes.
+
+Built-in skills (such as `lorex`) cannot be published.
 
 ### Interactive mode
 
-Running `lorex publish` with no arguments opens the full-screen TUI picker showing only local (unpublished) skills. Type to filter, Space to toggle, Ctrl+A to select all, Enter to confirm.
+Running `lorex publish` with no arguments opens the full-screen TUI picker showing all publishable skills (locally authored, plus registry-installed skills with uncommitted cache changes). Type to filter, Space to toggle, Ctrl+A to select all, Enter to confirm.
 
 ### Behavior by policy
 
-**`pull-request` policy:**
+**Locally authored skill — `pull-request` policy:**
 
 1. Pulls the latest registry cache
 2. Creates a branch: `lorex/<skill-name>-<timestamp>`
@@ -452,11 +476,24 @@ Running `lorex publish` with no arguments opens the full-screen TUI picker showi
 
 Your local skill directory stays as-is until the PR is merged and you run `lorex sync`.
 
-**`direct` policy:**
+**Locally authored skill — `direct` policy:**
 
 1. Pulls the latest registry cache
 2. Commits and pushes the skill to the base branch
 3. Immediately replaces your local directory with a symlink to the registry cache
+
+**Registry-installed skill — `direct` policy:**
+
+1. Stages the uncommitted changes in the registry cache scoped to the skill's path
+2. Commits and pushes directly to the base branch
+3. The symlink continues pointing to the same cache location — no reinstall needed
+
+**Registry-installed skill — `pull-request` policy:**
+
+1. Snapshots your edits to a temporary directory
+2. Reverts the cache working tree so the base checkout can proceed cleanly
+3. Creates a worktree on a new branch and copies the snapshot there
+4. Commits and pushes the branch; prints the PR URL
 
 **`read-only` policy:**
 
@@ -467,7 +504,9 @@ Blocked. The command exits with an error. Contact the registry owner to change t
 ```bash
 lorex publish checkout-flow
 lorex publish checkout-flow auth-logic
-lorex publish                      # pick interactively
+lorex publish                       # pick interactively
+lorex publish -g datacore-athena    # publish a globally installed registry skill
+lorex publish -g                    # interactive picker for global skills
 ```
 
 ::: info Registry required

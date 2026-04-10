@@ -95,7 +95,49 @@ lorex publish
 ### What you cannot publish
 
 - **Built-in skills** (like `lorex`) — these are bundled in the binary. If you want to customize one, run `lorex create my-lorex` and publish that instead.
-- **Already-symlinked skills** — a skill that is already registry-backed cannot be published again as-is. Edit it, then `lorex sync` to pull it, which will turn it back into a local directory if you have local changes.
+
+---
+
+## Editing a registry-installed skill
+
+Because registry-installed skills are directory symlinks into the local cache, editing a skill file edits the cache directly. You can publish those changes back without any extra steps.
+
+### Project skill
+
+```bash
+# Edit the skill (changes land in the local registry cache)
+$EDITOR .lorex/skills/checkout-flow/SKILL.md
+
+# Publish back to the registry
+lorex publish checkout-flow
+```
+
+### Globally installed skill
+
+```bash
+# Edit through the global symlink
+$EDITOR ~/.lorex/skills/datacore-athena/SKILL.md
+
+# Publish back using the -g flag
+lorex publish -g datacore-athena
+```
+
+Both commands follow the same `direct` / `pull-request` policy as publishing a locally authored skill.
+
+### Resolving the lorex sync prompt
+
+If you have unpublished edits in the registry cache and run `lorex sync`, Lorex detects the uncommitted changes and prompts you before pulling:
+
+```
+⚠  Registry cache has uncommitted changes:
+  • datacore-athena  →  publish: lorex publish -g datacore-athena
+
+What would you like to do?
+> Keep my changes (cancel sync)
+  Discard changes and sync
+```
+
+Choose **Keep my changes** to cancel and publish first. Choose **Discard changes and sync** to throw away the edits and pull the latest registry content.
 
 ---
 

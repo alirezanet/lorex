@@ -723,9 +723,34 @@ public sealed class SkillService(RegistryService registry)
                 "No registry configured. Run `lorex init <url>` to connect a registry before publishing.");
         var localPath = SkillDir(projectRoot, skillName);
 
-        if (!Directory.Exists(localPath) || IsSymlink(localPath))
-            throw new InvalidOperationException(
-                $"Skill '{skillName}' not found locally or is already a registry-linked skill.");
+        if (!Directory.Exists(localPath))
+            throw new InvalidOperationException($"Skill '{skillName}' not found.");
+
+        if (IsSymlink(localPath))
+        {
+            // Registry-installed skill edited in place — changes live in the registry cache already.
+            var cacheDir = registry.GetCachePath(config.Registry.Url);
+            if (!Directory.Exists(Path.Combine(cacheDir, ".git")))
+                throw new InvalidOperationException(
+                    "Registry is not cached locally. Run `lorex sync` first.");
+
+            // Resolve the real path inside the cache, which may be nested (skills/cat/name).
+            var resolvedTarget = ResolveSymlinkTarget(new DirectoryInfo(localPath));
+            var skillCacheRelPath = Path.GetRelativePath(cacheDir, resolvedTarget);
+
+            return config.Registry.Policy.PublishMode switch
+            {
+                var mode when string.Equals(mode, RegistryPublishModes.Direct, StringComparison.OrdinalIgnoreCase)
+                    => PublishRegistrySkillDirect(skillName, cacheDir, skillCacheRelPath, git),
+                var mode when string.Equals(mode, RegistryPublishModes.PullRequest, StringComparison.OrdinalIgnoreCase)
+                    => PublishRegistrySkillViaPullRequest(skillName, resolvedTarget, config.Registry, git),
+                var mode when string.Equals(mode, RegistryPublishModes.ReadOnly, StringComparison.OrdinalIgnoreCase)
+                    => throw new InvalidOperationException(
+                        $"Registry '{config.Registry.Url}' is read-only. Publishing is disabled by {RegistryService.RegistryManifestFileName}."),
+                _ => throw new InvalidOperationException(
+                    $"Registry '{config.Registry.Url}' has unsupported publish mode '{config.Registry.Policy.PublishMode}'.")
+            };
+        }
 
         return config.Registry.Policy.PublishMode switch
         {
@@ -807,6 +832,53 @@ public sealed class SkillService(RegistryService registry)
             .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)!];
     }
 
+    /// <summary>
+    /// Returns skill names that are candidates for publishing: local (real-directory) skills, and
+    /// registry-installed (symlinked) skills that have uncommitted changes in the registry cache.
+    /// Built-in skills are excluded.
+    /// </summary>
+    public IEnumerable<string> PublishableSkills(string projectRoot, GitService git)
+    {
+        var skillsDir = Path.Combine(projectRoot, LorexDir, "skills");
+        if (!Directory.Exists(skillsDir)) yield break;
+
+        var builtIns = BuiltInSkillService.SkillNames().ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // Resolve the registry cache directory once — needed for relative-path change detection.
+        var config = ReadConfig(projectRoot);
+        string? cacheDir = null;
+        if (config.Registry is not null)
+        {
+            var path = registry.GetCachePath(config.Registry.Url);
+            if (Directory.Exists(Path.Combine(path, ".git")))
+                cacheDir = path;
+        }
+
+        foreach (var dir in Directory.EnumerateDirectories(skillsDir))
+        {
+            var name = Path.GetFileName(dir);
+            if (string.IsNullOrWhiteSpace(name) || builtIns.Contains(name)) continue;
+
+            var info = new DirectoryInfo(dir);
+            if (info.LinkTarget is null)
+            {
+                // Locally authored skill — always publishable.
+                yield return name;
+            }
+            else if (cacheDir is not null)
+            {
+                // Registry-installed skill — only publishable if the cache has uncommitted changes.
+                // Use GetRelativePath so nested registry layouts (skills/cat/name) are handled correctly.
+                var resolvedTarget = ResolveSymlinkTarget(info);
+                var relativePath = Path.GetRelativePath(cacheDir, resolvedTarget);
+                if (relativePath.StartsWith("..", StringComparison.Ordinal)) continue; // not in this registry
+
+                if (git.HasChangesForPath(cacheDir, relativePath))
+                    yield return name;
+            }
+        }
+    }
+
     /// <summary>Returns skill names in .lorex/skills/ that are real directories (not symlinks), i.e. locally authored, unpublished skills.
     /// Built-in skills (embedded in the binary) are excluded.</summary>
     public IEnumerable<string> LocalOnlySkills(string projectRoot)
@@ -826,6 +898,56 @@ public sealed class SkillService(RegistryService registry)
     {
         var path = SkillDir(projectRoot, skillName);
         return Directory.Exists(path) && !IsSymlink(path);
+    }
+
+    /// <summary>
+    /// Publishes a registry-installed (symlinked) skill by committing and pushing the edits that
+    /// the user made directly in the registry cache. No copy or symlink replacement needed.
+    /// </summary>
+    private PublishResult PublishRegistrySkillDirect(string skillName, string cacheDir, string skillCacheRelPath, GitService git)
+    {
+        if (!git.HasChangesForPath(cacheDir, skillCacheRelPath))
+            throw new InvalidOperationException($"Skill '{skillName}' has no local changes to publish.");
+
+        git.Add(cacheDir, skillCacheRelPath);
+        git.Commit(cacheDir, $"feat: publish skill '{skillName}'");
+        git.Push(cacheDir);
+
+        return new PublishResult
+        {
+            SkillName = skillName,
+            PublishMode = RegistryPublishModes.Direct,
+        };
+    }
+
+    /// <summary>
+    /// Publishes a registry-installed (symlinked) skill via pull request. Snapshots the user's edits
+    /// to a temp directory before <see cref="CheckoutResetToRemoteBranch"/> resets the registry cache,
+    /// then delegates to the normal PR flow with the snapshot as the source.
+    /// </summary>
+    private PublishResult PublishRegistrySkillViaPullRequest(string skillName, string resolvedTarget, RegistryConfig registryConfig, GitService git)
+    {
+        var cacheDir = registry.GetCachePath(registryConfig.Url);
+        var skillCacheRelPath = Path.GetRelativePath(cacheDir, resolvedTarget);
+
+        var tempSnapshot = Path.Combine(Path.GetTempPath(), $"lorex-publish-{skillName}-{Guid.NewGuid():N}");
+        try
+        {
+            CopySkillFolder(resolvedTarget, tempSnapshot);
+
+            // Revert the working-tree edits so that CheckoutResetToRemoteBranch inside
+            // PublishSkillViaPullRequest succeeds. Content is safely captured in tempSnapshot.
+            git.CheckoutPaths(cacheDir, [skillCacheRelPath]);
+
+            // Pass skillCacheRelPath so the PR worktree mirrors the original nested layout
+            // (e.g. skills/data/datacore-athena, not the flat skills/datacore-athena).
+            return PublishSkillViaPullRequest(skillName, tempSnapshot, registryConfig, git, skillCacheRelPath);
+        }
+        finally
+        {
+            if (Directory.Exists(tempSnapshot))
+                Directory.Delete(tempSnapshot, recursive: true);
+        }
     }
 
     private PublishResult PublishSkillDirect(string projectRoot, string skillName, string localPath, RegistryConfig registryConfig, GitService git)
@@ -856,7 +978,7 @@ public sealed class SkillService(RegistryService registry)
         };
     }
 
-    private PublishResult PublishSkillViaPullRequest(string skillName, string localPath, RegistryConfig registryConfig, GitService git)
+    private PublishResult PublishSkillViaPullRequest(string skillName, string localPath, RegistryConfig registryConfig, GitService git, string? registryRelPath = null)
     {
         var cacheDir = registry.EnsureCache(registryConfig.Url);
         var policy = registryConfig.Policy;
@@ -879,7 +1001,11 @@ public sealed class SkillService(RegistryService registry)
         try
         {
             git.WorktreeAdd(cacheDir, worktreeDir, branchName, policy.BaseBranch);
-            var destination = Path.Combine(worktreeDir, "skills", skillName);
+            // Use the registry-relative path when provided (preserves nested layout such as
+            // skills/data/datacore-athena); fall back to the flat skills/<name> for new skills.
+            var destination = registryRelPath is not null
+                ? Path.Combine(worktreeDir, registryRelPath)
+                : Path.Combine(worktreeDir, "skills", skillName);
             CopySkillFolder(localPath, destination);
 
             if (!git.HasChanges(worktreeDir))
@@ -982,6 +1108,15 @@ public sealed class SkillService(RegistryService registry)
     private static bool IsSymlink(string path) =>
         Directory.Exists(path) &&
         new DirectoryInfo(path).LinkTarget is not null;
+
+    /// <summary>
+    /// Resolves a directory symlink to its real absolute path, handling both absolute and relative link targets.
+    /// </summary>
+    private static string ResolveSymlinkTarget(DirectoryInfo symlinkDir)
+    {
+        var target = symlinkDir.LinkTarget!;
+        return Path.IsPathRooted(target) ? target : Path.GetFullPath(target, symlinkDir.Parent!.FullName);
+    }
 
     private static void CopySkillFolder(string source, string destination)
     {

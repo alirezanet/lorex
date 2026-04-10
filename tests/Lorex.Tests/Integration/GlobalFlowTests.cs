@@ -1,3 +1,5 @@
+using Lorex.Cli;
+
 namespace Lorex.Tests.Integration;
 
 /// <summary>Integration tests for global lorex flows (--global flag, ~/.lorex equivalent).</summary>
@@ -93,6 +95,56 @@ public sealed class GlobalFlowTests
         // Existing global skill should still be installed
         var globalSkillDir = Path.Combine(h.GlobalRoot, ".lorex", "skills", "global-skill");
         Assert.True(Directory.Exists(globalSkillDir));
+    }
+
+    [Fact]
+    public void Publish_GlobalRegistrySkill_DirectMode_CommitsAndPushes()
+    {
+        if (!LorexTestHarness.SymlinksAvailable()) return;
+
+        using var h = new LorexTestHarness();
+        var registry = h.CreateRegistry(publishMode: "direct", skillNames: ["my-skill"]);
+        h.RunGlobal("init", registry, "--adapters", "claude");
+        h.RunGlobal("install", "my-skill");
+        h.AssertGlobalIsSymlink("my-skill");
+
+        // Simulate editing the skill in place; because the global skill is a symlink into the
+        // registry cache, writing here is equivalent to editing through the symlink.
+        const string modified = "---\nname: my-skill\ndescription: Modified\nversion: 2.0.0\ntags: test\n---\n\n# Modified\n";
+        h.ModifyCacheSkill(registry, "my-skill", modified);
+
+        var exit = h.RunGlobal("publish", "my-skill");
+
+        Assert.Equal(0, exit);
+        // The registry should have received a new commit from the push.
+        var log = ServiceFactory.Git.Run(registry, "log", "--oneline", "-3");
+        Assert.Contains("publish skill", log, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Publish_GlobalRegistrySkill_NestedLayout_CommitsToCorrectPath()
+    {
+        if (!LorexTestHarness.SymlinksAvailable()) return;
+
+        using var h = new LorexTestHarness();
+        var registry = h.CreateRegistry(publishMode: "direct");
+        h.AddSkillToRepoNested(registry, "data", "nested-skill");
+        h.CommitRegistry(registry);
+
+        h.RunGlobal("init", registry, "--adapters", "claude");
+        h.RunGlobal("install", "nested-skill");
+        h.AssertGlobalIsSymlink("nested-skill");
+
+        // Edit the skill; the symlink target lives at skills/data/nested-skill in the cache.
+        const string modified = "---\nname: nested-skill\ndescription: Updated nested skill\nversion: 2.0.0\ntags: data\n---\n\n# Updated\n";
+        h.ModifyCacheSkillNested(registry, "data", "nested-skill", modified);
+
+        var exit = h.RunGlobal("publish", "nested-skill");
+
+        Assert.Equal(0, exit);
+        // Verify the commit reached the nested path (not a flat skills/nested-skill destination).
+        var committedContent = ServiceFactory.Git.Run(registry, "show", "HEAD:skills/data/nested-skill/SKILL.md");
+        Assert.Contains("Updated nested skill", committedContent, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

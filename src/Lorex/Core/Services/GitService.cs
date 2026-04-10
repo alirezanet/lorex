@@ -162,6 +162,33 @@ public sealed class GitService
     public bool HasChanges(string repoPath) =>
         !string.IsNullOrWhiteSpace(Run(repoPath, "status", "--porcelain"));
 
+    /// <summary>Returns true when there are modifications to tracked files (staged or unstaged).
+    /// Untracked files are ignored, so tool-managed cache files do not trigger a false positive.</summary>
+    public bool HasTrackedChanges(string repoPath) =>
+        !string.IsNullOrWhiteSpace(Run(repoPath, "status", "--porcelain", "-uno"));
+
+    /// <summary>Returns the relative paths of all tracked files that have staged or unstaged modifications.
+    /// Untracked files are excluded.</summary>
+    public IReadOnlyList<string> GetTrackedChangedPaths(string repoPath) =>
+        [.. Run(repoPath, "status", "--porcelain", "-uno", "--no-renames")
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Where(line => line.Length > 3)
+            .Select(line => line[3..].Trim())
+            .Where(p => !string.IsNullOrWhiteSpace(p))];
+
+    /// <summary>Reverts the given tracked file paths to their last committed state.</summary>
+    public void CheckoutPaths(string repoPath, IReadOnlyList<string> paths)
+    {
+        foreach (var path in paths)
+            Run(repoPath, "checkout", "--", path);
+    }
+
+    public bool HasChangesForPath(string repoPath, string pathspec) =>
+        !string.IsNullOrWhiteSpace(Run(repoPath, "status", "--porcelain", "--", pathspec));
+
+    public void Add(string repoPath, string pathspec) =>
+        Run(repoPath, "add", "--", pathspec);
+
     public void Commit(string repoPath, string message) =>
         Run(repoPath, "commit", "-m", message);
 

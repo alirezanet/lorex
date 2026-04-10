@@ -1,3 +1,5 @@
+using Lorex.Cli;
+
 namespace Lorex.Tests.Integration;
 
 /// <summary>Integration tests for registry-backed lorex flows using a local git repo as a fake registry.</summary>
@@ -166,6 +168,51 @@ public sealed class RegistryFlowTests
         Assert.False(
             Directory.Exists(adapterTarget),
             $"Expected adapter projection to be removed at {adapterTarget}");
+    }
+
+    [Fact]
+    public void Publish_RegistryInstalledSkill_DirectMode_CommitsAndPushes()
+    {
+        if (!LorexTestHarness.SymlinksAvailable()) return;
+
+        using var h = new LorexTestHarness();
+        var registry = h.CreateRegistry(publishMode: "direct", skillNames: ["registry-skill"]);
+        h.Run("init", registry, "--adapters", "claude");
+        h.Run("install", "registry-skill");
+        h.AssertIsSymlink("registry-skill");
+
+        // Simulate editing the skill; the symlink target lives in the registry cache.
+        const string modified = "---\nname: registry-skill\ndescription: Modified\nversion: 2.0.0\ntags: test\n---\n\n# Modified\n";
+        h.ModifyCacheSkill(registry, "registry-skill", modified);
+
+        var exit = h.Run("publish", "registry-skill");
+
+        Assert.Equal(0, exit);
+        var log = ServiceFactory.Git.Run(registry, "log", "--oneline", "-3");
+        Assert.Contains("publish skill", log, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void EnsureCache_WithDirtyTrackedFiles_SkipsCheckout()
+    {
+        if (!LorexTestHarness.SymlinksAvailable()) return;
+
+        using var h = new LorexTestHarness();
+        var registry = h.CreateRegistry(publishMode: "direct", skillNames: ["auth"]);
+        h.Run("init", registry, "--adapters", "claude");
+        h.Run("install", "auth");
+
+        // Modify a tracked file in the cache (simulates an in-progress skill edit).
+        const string modified = "---\nname: auth\ndescription: Work in progress\nversion: 2.0.0\n---\n\n# Auth\n";
+        h.ModifyCacheSkill(registry, "auth", modified);
+
+        // Force a cache refresh — the guard in SyncCacheRepository must skip the destructive
+        // checkout so the in-progress edit is preserved.
+        ServiceFactory.Registry.EnsureCache(registry, forceRefresh: true);
+
+        var cacheDir = ServiceFactory.Registry.GetCachePath(registry);
+        var content = File.ReadAllText(Path.Combine(cacheDir, "skills", "auth", "SKILL.md"));
+        Assert.Contains("Work in progress", content, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

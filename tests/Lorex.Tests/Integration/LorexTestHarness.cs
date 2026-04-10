@@ -58,7 +58,7 @@ internal sealed class LorexTestHarness : IDisposable
                 "install"   => InstallCommand.Run(args,   cwd, homeRoot),
                 "uninstall" => UninstallCommand.Run(args, cwd, homeRoot),
                 "create"    => CreateCommand.Run(args,    cwd),
-                "publish"   => PublishCommand.Run(args,   cwd),
+                "publish"   => PublishCommand.Run(args,   cwd, homeRoot),
                 "registry"  => RegistryCommand.Run(args,  cwd),
                 "refresh"   => RefreshCommand.Run(args,   cwd),
                 "sync"      => SyncCommand.Run(args,      cwd, homeRoot),
@@ -151,6 +151,30 @@ internal sealed class LorexTestHarness : IDisposable
             content ?? $"---\nname: {skillName}\ndescription: Test skill {skillName}\nversion: 1.0.0\ntags: test\n---\n\n# {skillName}\n\nTest skill.\n");
     }
 
+    /// <summary>Adds a skill under a category subdirectory in a local registry repo (nested layout). Call CommitRegistry to persist.</summary>
+    public void AddSkillToRepoNested(string repoDir, string category, string skillName, string? content = null)
+    {
+        var skillDir = Path.Combine(repoDir, "skills", category, skillName);
+        Directory.CreateDirectory(skillDir);
+        File.WriteAllText(
+            Path.Combine(skillDir, "SKILL.md"),
+            content ?? $"---\nname: {skillName}\ndescription: Test skill {skillName}\nversion: 1.0.0\ntags: test\n---\n\n# {skillName}\n\nTest skill.\n");
+    }
+
+    /// <summary>Overwrites a skill's SKILL.md in the registry cache (flat layout) to simulate in-place editing through a symlink.</summary>
+    public void ModifyCacheSkill(string registryUrl, string skillName, string content)
+    {
+        var cacheDir = ServiceFactory.Registry.GetCachePath(registryUrl);
+        File.WriteAllText(Path.Combine(cacheDir, "skills", skillName, "SKILL.md"), content);
+    }
+
+    /// <summary>Overwrites a skill's SKILL.md in the registry cache (nested layout) to simulate in-place editing through a symlink.</summary>
+    public void ModifyCacheSkillNested(string registryUrl, string category, string skillName, string content)
+    {
+        var cacheDir = ServiceFactory.Registry.GetCachePath(registryUrl);
+        File.WriteAllText(Path.Combine(cacheDir, "skills", category, skillName, "SKILL.md"), content);
+    }
+
     /// <summary>Removes a skill directory from a local registry repo. Call CommitRegistry to persist.</summary>
     public void RemoveSkillFromRepo(string repoDir, string skillName)
     {
@@ -221,6 +245,22 @@ internal sealed class LorexTestHarness : IDisposable
             $"Expected adapter '{adapter}' to have projected skill '{skillName}' at {target}");
     }
 
+    /// <summary>Asserts that a skill directory exists under the global root's .lorex/skills/.</summary>
+    public void AssertGlobalSkillInstalled(string name) =>
+        Assert.True(
+            Directory.Exists(GlobalSkillDir(name)),
+            $"Expected global skill '{name}' to be installed at {GlobalSkillDir(name)}");
+
+    /// <summary>Asserts that the globally installed skill directory is a symlink.</summary>
+    public void AssertGlobalIsSymlink(string name)
+    {
+        var dir = GlobalSkillDir(name);
+        Assert.True(Directory.Exists(dir), $"Global skill '{name}' is not installed");
+        Assert.True(
+            new DirectoryInfo(dir).LinkTarget is not null,
+            $"Expected global skill '{name}' to be a symlink but it is a real directory");
+    }
+
     // ── Config helpers ────────────────────────────────────────────────────────
 
     /// <summary>Reads .lorex/lorex.json from the project root.</summary>
@@ -274,4 +314,7 @@ internal sealed class LorexTestHarness : IDisposable
 
     private string SkillDir(string name) =>
         Path.Combine(ProjectRoot, ".lorex", "skills", name);
+
+    private string GlobalSkillDir(string name) =>
+        Path.Combine(GlobalRoot, ".lorex", "skills", name);
 }

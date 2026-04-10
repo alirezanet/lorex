@@ -38,6 +38,40 @@ public static class SyncCommand
             // ── Registry sync ────────────────────────────────────────────────
             if (cfg.Registry is not null)
             {
+                // Guard: uncommitted edits in the registry cache would be overwritten by the checkout.
+                var cacheDir = ServiceFactory.Registry.GetCachePath(cfg.Registry.Url);
+                if (Directory.Exists(Path.Combine(cacheDir, ".git")) && ServiceFactory.Git.HasTrackedChanges(cacheDir))
+                {
+                    var changedPaths = ServiceFactory.Git.GetTrackedChangedPaths(cacheDir);
+                    var dirtySkills = changedPaths
+                        .Select(SkillNameFromCachePath)
+                        .Where(n => !string.IsNullOrWhiteSpace(n))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList()!;
+
+                    AnsiConsole.MarkupLine("[yellow]⚠[/]  Registry cache has uncommitted changes:");
+                    var globalRoot = GlobalRootLocator.GetGlobalRoot();
+                    foreach (var skill in dirtySkills)
+                    {
+                        var globalSkillPath = Path.Combine(globalRoot, ".lorex", "skills", skill!);
+                        var isGlobalSkill = Directory.Exists(globalSkillPath) &&
+                                            new DirectoryInfo(globalSkillPath).LinkTarget is not null;
+                        var publishCmd = isGlobalSkill ? $"lorex publish -g {skill}" : $"lorex publish {skill}";
+                        AnsiConsole.MarkupLine("  [dim]•[/] [bold]{0}[/]  [dim]→  publish: {1}[/]",
+                            Markup.Escape(skill!), Markup.Escape(publishCmd));
+                    }
+
+                    var choice = AnsiConsole.Prompt(
+                        new SelectionPrompt<string>()
+                            .Title("What would you like to do?")
+                            .AddChoices("Keep my changes (cancel sync)", "Discard changes and sync"));
+
+                    if (string.Equals(choice, "Discard changes and sync", StringComparison.Ordinal))
+                        ServiceFactory.Git.CheckoutPaths(cacheDir, changedPaths);
+                    else
+                        return 1;
+                }
+
                 Lorex.Core.Models.LorexConfig refreshedConfig;
                 if (!RegistryCommandSupport.TryRefreshConfiguredRegistry(projectRoot, out refreshedConfig, "Refreshing registry...", forceRefresh: true))
                     return 1;
@@ -220,6 +254,19 @@ public static class SyncCommand
             AnsiConsole.MarkupLine("[red]Error:[/] {0}", Markup.Escape(ex.Message));
             return 1;
         }
+    }
+
+    /// <summary>
+    /// Extracts the skill directory name from a cache-relative file path such as
+    /// <c>skills/data/datacore-athena/SKILL.md</c> → <c>datacore-athena</c>.
+    /// Returns null for paths that are not inside a skill directory.
+    /// </summary>
+    private static string? SkillNameFromCachePath(string relativePath)
+    {
+        var normalized = relativePath.Replace('\\', '/');
+        if (!normalized.StartsWith("skills/", StringComparison.OrdinalIgnoreCase)) return null;
+        var parent = Path.GetDirectoryName(normalized.Replace('/', Path.DirectorySeparatorChar));
+        return string.IsNullOrWhiteSpace(parent) ? null : Path.GetFileName(parent);
     }
 
     private static int PrintHelp() => HelpPrinter.Print(
