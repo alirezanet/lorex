@@ -88,7 +88,7 @@ internal sealed class LorexTestHarness : IDisposable
     /// Creates a minimal local git repository usable as a lorex registry.
     /// Returns the directory path, which can be passed directly as a registry URL.
     /// </summary>
-    public string CreateRegistry(string publishMode = "direct", string[]? skillNames = null)
+    public string CreateRegistry(string publishMode = "direct", string[]? skillNames = null, TapConfig[]? recommendedTaps = null)
     {
         var repoDir = Path.Combine(_tempDir, $"registry-{Guid.NewGuid():N}");
         Directory.CreateDirectory(repoDir);
@@ -115,9 +115,21 @@ internal sealed class LorexTestHarness : IDisposable
         git.Run(repoDir, "config", "receive.denyCurrentBranch", "ignore");
 
         // Write registry manifest
+        var manifestJson = recommendedTaps is { Length: > 0 }
+            ? System.Text.Json.JsonSerializer.Serialize(
+                new RegistryPolicy
+                {
+                    PublishMode = publishMode,
+                    BaseBranch = "main",
+                    PrBranchPrefix = "lorex/",
+                    RecommendedTaps = recommendedTaps,
+                },
+                LorexJsonContext.Default.RegistryPolicy)
+            : $$"""{"publishMode":"{{publishMode}}","baseBranch":"main","prBranchPrefix":"lorex/"}""";
+
         File.WriteAllText(
             Path.Combine(repoDir, ".lorex-registry.json"),
-            $$"""{"publishMode":"{{publishMode}}","baseBranch":"main","prBranchPrefix":"lorex/"}""");
+            manifestJson);
 
         // Create initial skills
         foreach (var name in skillNames ?? [])
