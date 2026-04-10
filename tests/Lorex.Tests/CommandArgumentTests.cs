@@ -463,6 +463,13 @@ public sealed class CommandArgumentTests
     }
 
     [Fact]
+    public void InitCommand_HelpFlag_ReturnsZero()
+    {
+        Assert.Equal(0, InitCommand.Run(["--help"]));
+        Assert.Equal(0, InitCommand.Run(["-h"]));
+    }
+
+    [Fact]
     public void SkillService_RequiresOverwriteApproval_IsTrueForLocalDirectoryAndFalseForSymlink()
     {
         var projectRoot = Path.Combine(Path.GetTempPath(), $"lorex-test-{Guid.NewGuid():N}");
