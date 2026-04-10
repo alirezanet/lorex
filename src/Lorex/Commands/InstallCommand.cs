@@ -23,6 +23,9 @@ public static class InstallCommand
     /// <summary>Runs the command. Returns 0 on success, 1 on failure.</summary>
     public static int Run(string[] args, string? cwd = null, string? homeRoot = null)
     {
+        if (args.Any(a => a is "--help" or "-h"))
+            return PrintHelp();
+
         var isGlobal = WantsGlobal(args);
 
         if (isGlobal && OperatingSystem.IsWindows() && !WindowsDevModeHelper.IsSymlinkAvailable())
@@ -283,4 +286,26 @@ public static class InstallCommand
 
         return (available, sources);
     }
+
+    private static int PrintHelp() => HelpPrinter.Print(
+        "lorex install [<skill>…] [--all] [--recommended] [--search <text>] [--tag <tag>] [-g]",
+        "Install skills from the registry, taps, or a URL.\nRunning without arguments opens an interactive picker.",
+        options:
+        [
+            ("<skill>…",           "Skill names or URLs to install"),
+            ("--all",              "Install all available skills"),
+            ("--recommended",      "Install skills recommended for this project"),
+            ("--search <text>",    "Pre-filter the picker by name or description"),
+            ("--tag <tag>",        "Pre-filter the picker by tag"),
+            ("-g, --global",       "Operate on the global lorex root (~/.lorex)"),
+            ("-h, --help",         "Show this help"),
+        ],
+        examples:
+        [
+            ("Interactive picker",         "lorex install"),
+            ("Install a specific skill",   "lorex install my-skill"),
+            ("Install recommended skills", "lorex install --recommended"),
+            ("Install all available",      "lorex install --all"),
+            ("Install from a URL",         "lorex install https://github.com/org/skill-repo"),
+        ]);
 }

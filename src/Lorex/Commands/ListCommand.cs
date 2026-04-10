@@ -18,6 +18,9 @@ public static class ListCommand
     /// <summary>Runs the command. Returns 0 on success, 1 on failure.</summary>
     public static int Run(string[] args, string? cwd = null, string? homeRoot = null)
     {
+        if (args.Any(a => a is "--help" or "-h"))
+            return PrintHelp();
+
         var isGlobal = args.Any(a =>
             string.Equals(a, GlobalFlag, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(a, "-g",       StringComparison.OrdinalIgnoreCase));
@@ -243,4 +246,24 @@ public static class ListCommand
             return "[dim]url[/]";
         return "[dim]registry[/]";
     }
+
+    private static int PrintHelp() => HelpPrinter.Print(
+        "lorex list [--search <text>] [--tag <tag>] [--page <n>] [--page-size <n>] [-g]",
+        "Browse skills available in the registry and taps.\nOpens an interactive TUI in a terminal; outputs a plain table when piped.",
+        options:
+        [
+            ("--search <text>", "Filter by name or description"),
+            ("--tag <tag>",     "Filter by tag"),
+            ("--page <n>",      "Page number (default: 1)"),
+            ("--page-size <n>", "Results per page (default: 25; use 0 to show all)"),
+            ("-g, --global",    "Operate on the global lorex root (~/.lorex)"),
+            ("-h, --help",      "Show this help"),
+        ],
+        examples:
+        [
+            ("Interactive TUI",            "lorex list"),
+            ("Filter by keyword",          "lorex list --search auth"),
+            ("Filter by tag",              "lorex list --tag security"),
+            ("Paginate non-interactively", "lorex list --page 2 --page-size 10"),
+        ]);
 }

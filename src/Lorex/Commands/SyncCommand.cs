@@ -12,6 +12,9 @@ public static class SyncCommand
     /// <summary>Runs the command. Returns 0 on success, 1 on failure.</summary>
     public static int Run(string[] args, string? cwd = null, string? homeRoot = null)
     {
+        if (args.Any(a => a is "--help" or "-h"))
+            return PrintHelp();
+
         var isGlobal = args.Any(a =>
             string.Equals(a, GlobalFlag, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(a, "-g",       StringComparison.OrdinalIgnoreCase));
@@ -127,12 +130,15 @@ public static class SyncCommand
                     var newTaps = recommended.Where(t => !configuredUrls.Contains(t.Url)).ToList();
                     if (newTaps.Count > 0)
                     {
-                        var tapList = string.Join(", ", newTaps.Select(t => Markup.Escape(t.Name)));
                         AnsiConsole.MarkupLine(
-                            "[blue]ℹ[/] This registry recommends {0} new tap source{1}: [bold]{2}[/]",
-                            newTaps.Count, newTaps.Count == 1 ? "" : "s", tapList);
+                            "[blue]ℹ[/] This registry recommends {0} new tap source{1}:",
+                            newTaps.Count, newTaps.Count == 1 ? "" : "s");
+                        foreach (var tap in newTaps)
+                            AnsiConsole.MarkupLine(
+                                "  [bold]lorex tap add {0} --name {1}[/]",
+                                Markup.Escape(tap.Url), Markup.Escape(tap.Name));
                         AnsiConsole.MarkupLine(
-                            "[dim]Run [bold]lorex tap add <url>[/] to add them, or [bold]lorex init[/] to configure interactively.[/]");
+                            "[dim]Or run [bold]lorex init[/] to configure interactively.[/]");
                     }
                 }
             }
@@ -215,4 +221,18 @@ public static class SyncCommand
             return 1;
         }
     }
+
+    private static int PrintHelp() => HelpPrinter.Print(
+        "lorex sync [-g]",
+        "Pull the latest skill versions from the registry and all taps,\nand restore any missing symlinks (e.g. after a fresh clone).",
+        options:
+        [
+            ("-g, --global", "Operate on the global lorex root (~/.lorex)"),
+            ("-h, --help",   "Show this help"),
+        ],
+        examples:
+        [
+            ("", "lorex sync"),
+            ("", "lorex sync --global"),
+        ]);
 }

@@ -13,6 +13,9 @@ public static class UninstallCommand
     /// <summary>Runs the command. Returns 0 on success, 1 on failure.</summary>
     public static int Run(string[] args, string? cwd = null, string? homeRoot = null)
     {
+        if (args.Any(a => a is "--help" or "-h"))
+            return PrintHelp();
+
         var isGlobal = args.Any(a =>
             string.Equals(a, GlobalFlag, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(a, "-g",       StringComparison.OrdinalIgnoreCase));
@@ -107,4 +110,21 @@ public static class UninstallCommand
         var metadata = SkillPickerTui.ReadInstalledMetadata(projectRoot, installedSkills);
         return SkillPickerTui.Run(metadata, [], title: "Uninstall Skills");
     }
+
+    private static int PrintHelp() => HelpPrinter.Print(
+        "lorex uninstall [<skill>…] [--all] [-g]",
+        "Remove installed skills. Running without arguments opens an interactive picker.",
+        options:
+        [
+            ("<skill>…",     "Skill names to uninstall"),
+            ("--all",        "Uninstall all installed skills"),
+            ("-g, --global", "Operate on the global lorex root (~/.lorex)"),
+            ("-h, --help",   "Show this help"),
+        ],
+        examples:
+        [
+            ("Interactive picker",      "lorex uninstall"),
+            ("Remove a specific skill", "lorex uninstall my-skill"),
+            ("Remove all skills",       "lorex uninstall --all"),
+        ]);
 }

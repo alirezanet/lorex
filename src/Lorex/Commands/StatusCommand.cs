@@ -12,6 +12,9 @@ public static class StatusCommand
     /// <summary>Runs the command. Returns 0 on success, 1 on failure.</summary>
     public static int Run(string[] args, string? cwd = null, string? homeRoot = null)
     {
+        if (args.Any(a => a is "--help" or "-h"))
+            return PrintHelp();
+
         var isGlobal = args.Any(a =>
             string.Equals(a, GlobalFlag, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(a, "-g",       StringComparison.OrdinalIgnoreCase));
@@ -179,4 +182,18 @@ public static class StatusCommand
         // No source entry — infer from link type (symlink = registry, local = local/built-in)
         return linkStyle == "green" ? "[dim]registry[/]" : "[dim]local[/]";
     }
+
+    private static int PrintHelp() => HelpPrinter.Print(
+        "lorex status [-g]",
+        "Show the registry, adapters, and installed skill link states for this project.",
+        options:
+        [
+            ("-g, --global", "Show global lorex state (~/.lorex) instead of the current project"),
+            ("-h, --help",   "Show this help"),
+        ],
+        examples:
+        [
+            ("", "lorex status"),
+            ("", "lorex status --global"),
+        ]);
 }

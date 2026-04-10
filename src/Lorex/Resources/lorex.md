@@ -33,9 +33,9 @@ Lorex commands resolve the project root by walking up from the current working d
 | `uninstall` | `lorex uninstall [<skill>…] [--all] [-g\|--global]` | Remove installed skills from this project or globally |
 | `list` | `lorex list [--search <text>] [--tag <tag>] [--page <n>] [--page-size <n>] [-g\|--global]` | Browse and filter skills available in the registry and all taps |
 | `status` | `lorex status [-g\|--global]` | Show installed skills, registry state, and adapter targets |
-| `sync` | `lorex sync [-g\|--global]` | Pull the latest versions from the registry and all taps. Skills deleted from the registry are removed automatically. |
+| `sync` | `lorex sync [-g\|--global]` | Pull the latest versions from the registry and all taps, and restore any missing symlinks (useful after a fresh clone). Skills deleted from the registry are removed automatically. |
 | `publish` | `lorex publish [<skill>…]` | Contribute local skills using the registry's publish policy |
-| `registry` | `lorex registry` | Interactively update the connected registry's publish policy |
+| `registry` | `lorex registry` | Interactively update the connected registry's publish policy and recommended taps |
 | `refresh` | `lorex refresh [--target adapter]` | Re-project skills into native agent locations after skill edits |
 | `tap add` | `lorex tap add <url\|path> [--name <name>] [--root <path>] [-g\|--global]` | Add a read-only skill source (any git repo, HTTPS/SSH or local absolute path) |
 | `tap remove` | `lorex tap remove <name> [-g\|--global]` | Remove a tap |

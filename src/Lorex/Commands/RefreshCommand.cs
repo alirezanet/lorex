@@ -13,6 +13,9 @@ public static class RefreshCommand
     /// <summary>Runs the command. Returns 0 on success, 1 on failure.</summary>
     public static int Run(string[] args, string? cwd = null)
     {
+        if (args.Any(a => a is "--help" or "-h"))
+            return PrintHelp();
+
         // Parse optional --target <adapter>
         string? target = null;
         for (var i = 0; i < args.Length - 1; i++)
@@ -44,4 +47,18 @@ public static class RefreshCommand
             return 1;
         }
     }
+
+    private static int PrintHelp() => HelpPrinter.Print(
+        "lorex refresh [--target <adapter>]",
+        "Re-project lorex skills into native agent locations without fetching from the registry.\nUseful after adding a new adapter or when projections are out of sync.",
+        options:
+        [
+            ("-t, --target <adapter>", "Re-project a single adapter only"),
+            ("-h, --help",             "Show this help"),
+        ],
+        examples:
+        [
+            ("Refresh all adapters",        "lorex refresh"),
+            ("Refresh only Claude adapter", "lorex refresh --target claude"),
+        ]);
 }

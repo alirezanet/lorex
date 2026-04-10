@@ -41,10 +41,13 @@ lorex/
 │   │   └── TapCommand.cs
 │   ├── Cli/
 │   │   ├── ServiceFactory.cs
+│   │   ├── ArgParser.cs                ← flag-value parsing utilities (FlagValue, IntFlagValue)
+│   │   ├── HelpPrinter.cs              ← consistent USAGE/DESCRIPTION/OPTIONS/EXAMPLES rendering for all commands
 │   │   ├── RegistryCommandSupport.cs
 │   │   ├── RegistryPolicyPrompts.cs
 │   │   ├── SkillOverwritePrompts.cs
-│   │   └── SkillPickerTui.cs           ← full-screen TUI for install/uninstall/publish
+│   │   ├── SkillBrowserTui.cs          ← read-only TUI browser for lorex list (search, paging, arrow keys)
+│   │   └── SkillPickerTui.cs           ← multi-select TUI for install/uninstall/publish
 │   ├── Core/
 │   │   ├── Adapters/
 │   │   │   ├── AdapterProjection.cs

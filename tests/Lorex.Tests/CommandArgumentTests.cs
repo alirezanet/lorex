@@ -431,6 +431,116 @@ public sealed class CommandArgumentTests
     }
 
     [Fact]
+    public void RegistryCommand_HelpFlag_ReturnsZero()
+    {
+        Assert.Equal(0, RegistryCommand.Run(["--help"]));
+        Assert.Equal(0, RegistryCommand.Run(["-h"]));
+    }
+
+    [Fact]
+    public void TapCommand_HelpFlag_ReturnsZero()
+    {
+        Assert.Equal(0, TapCommand.Run(["--help"]));
+        Assert.Equal(0, TapCommand.Run(["-h"]));
+        Assert.Equal(0, TapCommand.Run([]));   // no args → show help
+    }
+
+    [Fact]
+    public void SyncCommand_HelpFlag_ReturnsZero()
+    {
+        Assert.Equal(0, SyncCommand.Run(["--help"]));
+        Assert.Equal(0, SyncCommand.Run(["-h"]));
+    }
+
+    [Fact]
+    public void RefreshCommand_HelpFlag_ReturnsZero()
+    {
+        Assert.Equal(0, RefreshCommand.Run(["--help"]));
+        Assert.Equal(0, RefreshCommand.Run(["-h"]));
+    }
+
+    [Fact]
+    public void ListCommand_HelpFlag_ReturnsZero()
+    {
+        Assert.Equal(0, ListCommand.Run(["--help"]));
+        Assert.Equal(0, ListCommand.Run(["-h"]));
+    }
+
+    [Fact]
+    public void StatusCommand_HelpFlag_ReturnsZero()
+    {
+        Assert.Equal(0, StatusCommand.Run(["--help"]));
+        Assert.Equal(0, StatusCommand.Run(["-h"]));
+    }
+
+    [Fact]
+    public void CreateCommand_HelpFlag_ReturnsZero()
+    {
+        Assert.Equal(0, CreateCommand.Run(["--help"]));
+        Assert.Equal(0, CreateCommand.Run(["-h"]));
+    }
+
+    [Fact]
+    public void PublishCommand_HelpFlag_ReturnsZero()
+    {
+        Assert.Equal(0, PublishCommand.Run(["--help"]));
+        Assert.Equal(0, PublishCommand.Run(["-h"]));
+    }
+
+    [Fact]
+    public void InstallCommand_HelpFlag_ReturnsZero()
+    {
+        Assert.Equal(0, InstallCommand.Run(["--help"]));
+        Assert.Equal(0, InstallCommand.Run(["-h"]));
+    }
+
+    [Fact]
+    public void UninstallCommand_HelpFlag_ReturnsZero()
+    {
+        Assert.Equal(0, UninstallCommand.Run(["--help"]));
+        Assert.Equal(0, UninstallCommand.Run(["-h"]));
+    }
+
+    [Fact]
+    public void HelpPrinter_Print_DoesNotThrowWithMinimalArgs()
+    {
+        // Should not throw when only required args are provided
+        var result = HelpPrinter.Print("lorex test [args]", "Test description.");
+        Assert.Equal(0, result);
+    }
+
+    [Fact]
+    public void HelpPrinter_Print_DoesNotThrowWithAllSections()
+    {
+        var result = HelpPrinter.Print(
+            "lorex test [args]",
+            "First line.\nSecond line.",
+            options:
+            [
+                ("--flag", "A flag"),
+                ("-h, --help", "Show help"),
+            ],
+            examples:
+            [
+                ("With a comment", "lorex test --flag"),
+                ("", "lorex test"),
+            ],
+            subcommands:
+            [
+                ("sub <arg> [-g]", "A subcommand"),
+            ]
+        );
+        Assert.Equal(0, result);
+    }
+
+    [Fact]
+    public void InitCommand_HelpFlag_ReturnsZero()
+    {
+        Assert.Equal(0, InitCommand.Run(["--help"]));
+        Assert.Equal(0, InitCommand.Run(["-h"]));
+    }
+
+    [Fact]
     public void SkillService_RequiresOverwriteApproval_IsTrueForLocalDirectoryAndFalseForSymlink()
     {
         var projectRoot = Path.Combine(Path.GetTempPath(), $"lorex-test-{Guid.NewGuid():N}");

@@ -4,6 +4,12 @@ All commands resolve the project root by walking **up** from the current directo
 
 Commands that accept `--global` bypass project-root discovery entirely and operate on `~/.lorex/` instead. See [Global Skills](#global-skills) for the workflow.
 
+Every command supports `--help` / `-h` for command-specific usage, flags, and examples:
+
+```bash
+lorex <command> --help
+```
+
 ---
 
 ## `lorex init`
@@ -104,6 +110,7 @@ lorex generate                     # alias for lorex create
 | `--description <text>` | `-d` | One-sentence description shown to agents. |
 | `--tags <list>` | `-t` | Comma-separated tags used for `--recommended` matching. |
 | `--owner <name>` | `-o` | Team or person responsible for this skill. |
+| `--help` | `-h` | Show command-specific help and exit. |
 
 ### Behavior
 
@@ -154,6 +161,7 @@ lorex install                      # interactive TUI picker
 | `--search <text>` | Pre-filter the interactive skill picker to skills whose name, description, or tags contain `<text>`. Only applies when no skill names or `--all`/`--recommended` flags are given. |
 | `--tag <tag>` | Pre-filter the interactive skill picker to skills with the exact tag `<tag>`. Only applies in interactive mode. |
 | `--global` | Install into `~/.lorex/skills/` and project into user-level agent locations. Requires `lorex init --global` to have been run first. |
+| `--help` | Show command-specific help and exit. |
 
 `--all` and `--recommended` cannot be used together. Neither can be combined with explicit skill names or URLs.
 
@@ -229,6 +237,7 @@ lorex uninstall                    # interactive picker
 | `<skill>...` | One or more skill names to remove. |
 | `--all` | Remove every installed skill without prompting. |
 | `-g`, `--global` | Operate on the global lorex config (`~/.lorex/`) instead of the current project. |
+| `--help` | Show command-specific help and exit. |
 
 Running with no arguments opens the full-screen TUI picker showing all installed skills. Type to filter, Space to toggle, Ctrl+A to select all (filtered), Enter to confirm.
 
@@ -273,6 +282,7 @@ Pass `--page`, `--page-size`, or pipe the output to get the classic paginated ta
 | `--page <n>` | Page number to display (1-based, default: 1). Enables non-interactive table output. |
 | `--page-size <n>` | Skills per page (default: 25). Use `0` to disable pagination and show all results. Enables non-interactive table output. |
 | `-g`, `--global` | Browse skills available in the global lorex config (`~/.lorex/`) instead of the current project. |
+| `--help` | Show command-specific help and exit. |
 
 Table status values:
 - `installed` (green) — already in this project
@@ -337,6 +347,7 @@ Adapters:     claude, copilot, codex
 | Flag | Description |
 | :--- | :--- |
 | `-g`, `--global` | Show the global lorex context (`~/.lorex/`) instead of the current project. |
+| `--help` | Show command-specific help and exit. |
 
 ### Link types
 
@@ -362,6 +373,7 @@ lorex sync [-g|--global]
 | Flag | Description |
 | :--- | :--- |
 | `-g`, `--global` | Sync global skills at `~/.lorex/` instead of the current project. |
+| `--help` | Show command-specific help and exit. |
 
 ### What it does
 
@@ -417,6 +429,12 @@ lorex publish                      # interactive multi-select
 ```
 
 Only skills with link type `local` (real directories, not symlinks) can be published. Registry-backed symlinks and built-in skills cannot be published.
+
+### Flags
+
+| Flag | Short | Description |
+| :--- | :--- | :--- |
+| `--help` | `-h` | Show command-specific help and exit. |
 
 ### Interactive mode
 
@@ -491,6 +509,7 @@ lorex refresh [--target <adapter>]
 | Flag | Short | Description |
 | :--- | :--- | :--- |
 | `--target <adapter>` | `-t` | Re-project only a single adapter instead of all. |
+| `--help` | `-h` | Show command-specific help and exit. |
 
 ### When to run it
 

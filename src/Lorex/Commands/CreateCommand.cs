@@ -15,6 +15,9 @@ public static class CreateCommand
     /// </remarks>
     public static int Run(string[] args, string? cwd = null)
     {
+        if (args.Any(a => a is "--help" or "-h"))
+            return PrintHelp();
+
         var projectRoot = ProjectRootLocator.ResolveForExistingProject(cwd ?? Directory.GetCurrentDirectory());
 
         // ── Parse flags ───────────────────────────────────────────────────────
@@ -89,4 +92,21 @@ public static class CreateCommand
             return 1;
         }
     }
+
+    private static int PrintHelp() => HelpPrinter.Print(
+        "lorex create [<name>] [-d <desc>] [-t <tags>] [-o <owner>]",
+        "Scaffold a new skill in .lorex/skills/ for local authoring.\nRunning without arguments prompts interactively.",
+        options:
+        [
+            ("<name>",               "Skill name (kebab-case)"),
+            ("-d, --description",    "One-line description shown in lorex list"),
+            ("-t, --tags <a,b>",     "Comma-separated tags for discovery"),
+            ("-o, --owner <name>",   "Team or individual name"),
+            ("-h, --help",           "Show this help"),
+        ],
+        examples:
+        [
+            ("Interactive",     "lorex create"),
+            ("Non-interactive", "lorex create auth-overview -d \"Auth patterns for this repo\" -t auth,security"),
+        ]);
 }
