@@ -12,7 +12,7 @@ public static class RegistryCommand
 {
     public static int Run(string[] args, string? cwd = null)
     {
-        if (args.Length > 0 && args.Any(arg => arg is "--help" or "-h"))
+        if (args.Any(a => a is "--help" or "-h"))
             return PrintHelp();
 
         if (args.Length > 0)
@@ -146,14 +146,13 @@ public static class RegistryCommand
         }
     }
 
-    private static int PrintHelp()
-    {
-        AnsiConsole.MarkupLine("[bold]USAGE[/]  lorex registry");
-        AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine("[dim]Interactively update the connected registry's publish policy and recommended taps.[/]");
-        AnsiConsole.MarkupLine("[dim]Direct registries update immediately. Pull-request registries prepare a review branch instead.[/]");
-        return 0;
-    }
+    private static int PrintHelp() => HelpPrinter.Print(
+        "lorex registry",
+        "Interactively update the connected registry's publish policy and recommended taps.\nDirect registries update immediately; pull-request registries prepare a review branch.",
+        options:
+        [
+            ("-h, --help", "Show this help"),
+        ]);
 
     /// <summary>
     /// Value-equality for <see cref="RegistryPolicy"/> that correctly compares the
