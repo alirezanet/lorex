@@ -116,4 +116,68 @@ public sealed class TapFlowTests
         Assert.Equal(0, exit);
         h.AssertSkillInstalled("evolving-skill");
     }
+
+    [Fact]
+    public void TapPromote_ByName_AddsTapToRegistryRecommendedTaps()
+    {
+        using var h = new LorexTestHarness();
+        var registry = h.CreateRegistry(publishMode: "direct", skillNames: ["reg-skill"]);
+        h.Run("init", registry, "--adapters", "claude");
+        var tapRepo = h.CreateRegistry(skillNames: ["tap-skill"]);
+        h.Run("tap", "add", tapRepo, "--name", "my-tap");
+
+        var exit = h.Run("tap", "promote", "my-tap");
+
+        Assert.Equal(0, exit);
+        var policy = h.ReadRegistryPolicy(registry);
+        Assert.NotNull(policy.RecommendedTaps);
+        Assert.Contains(policy.RecommendedTaps, t =>
+            string.Equals(t.Name, "my-tap", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(t.Url,  tapRepo,  StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void TapPromote_AlreadyRecommended_ReturnsSuccessWithoutDuplication()
+    {
+        using var h = new LorexTestHarness();
+        var registry = h.CreateRegistry(publishMode: "direct", skillNames: ["reg-skill"]);
+        h.Run("init", registry, "--adapters", "claude");
+        var tapRepo = h.CreateRegistry(skillNames: ["tap-skill"]);
+        h.Run("tap", "add", tapRepo, "--name", "my-tap");
+        h.Run("tap", "promote", "my-tap");
+
+        var exit = h.Run("tap", "promote", "my-tap");
+
+        Assert.Equal(0, exit);
+        // Must not have added a duplicate entry
+        var policy = h.ReadRegistryPolicy(registry);
+        Assert.NotNull(policy.RecommendedTaps);
+        Assert.Single(policy.RecommendedTaps, t =>
+            string.Equals(t.Name, "my-tap", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void TapPromote_UnknownTapName_ReturnsError()
+    {
+        using var h = new LorexTestHarness();
+        var registry = h.CreateRegistry(publishMode: "direct", skillNames: ["reg-skill"]);
+        h.Run("init", registry, "--adapters", "claude");
+
+        var exit = h.Run("tap", "promote", "nonexistent-tap");
+
+        Assert.NotEqual(0, exit);
+    }
+
+    [Fact]
+    public void TapPromote_NoRegistryConfigured_ReturnsError()
+    {
+        using var h = new LorexTestHarness();
+        h.Run("init", "--local", "--adapters", "claude");
+        var tapRepo = h.CreateRegistry(skillNames: ["tap-skill"]);
+        h.Run("tap", "add", tapRepo, "--name", "my-tap");
+
+        var exit = h.Run("tap", "promote", "my-tap");
+
+        Assert.NotEqual(0, exit);
+    }
 }
