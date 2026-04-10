@@ -12,6 +12,9 @@ public static class SyncCommand
     /// <summary>Runs the command. Returns 0 on success, 1 on failure.</summary>
     public static int Run(string[] args, string? cwd = null, string? homeRoot = null)
     {
+        if (args.Any(a => a is "--help" or "-h"))
+            return PrintHelp();
+
         var isGlobal = args.Any(a =>
             string.Equals(a, GlobalFlag, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(a, "-g",       StringComparison.OrdinalIgnoreCase));
@@ -215,4 +218,18 @@ public static class SyncCommand
             return 1;
         }
     }
+
+    private static int PrintHelp() => HelpPrinter.Print(
+        "lorex sync [-g]",
+        "Pull the latest skill versions from the registry and all taps,\nand restore any missing symlinks (e.g. after a fresh clone).",
+        options:
+        [
+            ("-g, --global", "Operate on the global lorex root (~/.lorex)"),
+            ("-h, --help",   "Show this help"),
+        ],
+        examples:
+        [
+            ("", "lorex sync"),
+            ("", "lorex sync --global"),
+        ]);
 }
