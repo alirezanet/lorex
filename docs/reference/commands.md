@@ -510,10 +510,11 @@ lorex refresh -t claude            # claude only
 Manage read-only skill sources (taps). A tap is any git repository containing skills — no lorex registry setup required.
 
 ```bash
-lorex tap add    <url> [--name <name>] [--root <path>] [-g|--global]
-lorex tap remove <name> [-g|--global]
-lorex tap list   [-g|--global]
-lorex tap sync   [<name>] [-g|--global]
+lorex tap add     <url> [--name <name>] [--root <path>] [-g|--global]
+lorex tap remove  <name> [-g|--global]
+lorex tap list    [-g|--global]
+lorex tap sync    [<name>] [-g|--global]
+lorex tap promote [<name>]
 ```
 
 By default, tap commands operate on the current project's `.lorex/lorex.json`. Pass `-g` / `--global` to operate on the global lorex config at `~/.lorex/` instead.
@@ -604,6 +605,36 @@ Skills from the tap immediately appear in `lorex list` and `lorex install` along
 lorex tap add https://github.com/dotnet/skills --name dotnet
 lorex list                   # see dotnet skills with (dotnet) badge
 lorex install                # pick from registry + tap skills in the TUI
+```
+
+### `lorex tap promote`
+
+```bash
+lorex tap promote [<name>]
+```
+
+Adds one or more locally configured taps to the registry's `recommendedTaps` list so all connected projects are notified about them on `lorex init` and `lorex sync`.
+
+| Argument | Description |
+| :--- | :--- |
+| `<name>` | Name of the tap to promote. If omitted, an interactive picker shows all local taps not yet in `recommendedTaps`. |
+
+Requires a connected registry (not available in local-only mode). Respects the registry's publish mode:
+
+- **`direct`** — updates `/.lorex-registry.json` immediately and pushes.
+- **`pull-request`** — creates a review branch and prints a PR URL.
+- **`read-only`** — blocked; the registry owner must change the policy first.
+
+If the named tap is already in `recommendedTaps`, the command exits successfully with no changes.
+
+To manage the full recommendations list (including removing entries), use `lorex registry` instead.
+
+```bash
+# Promote a specific tap by name
+lorex tap promote dotnet
+
+# Interactive picker — select from taps not yet recommended
+lorex tap promote
 ```
 
 ---
