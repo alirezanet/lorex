@@ -70,51 +70,35 @@ static int PrintHelp()
     AnsiConsole.MarkupLine("[bold]USAGE[/]  lorex [dim]<command> [[args]][/]");
     AnsiConsole.WriteLine();
 
-    Grid MakeGrid() => new Grid()
+    AnsiConsole.Write(new Rule("[bold]COMMANDS[/]").LeftJustified().RuleStyle("blue dim"));
+    var commandsGrid = new Grid()
         .AddColumn(new GridColumn().Width(12))
-        .AddColumn(new GridColumn().Width(36))
         .AddColumn();
+    commandsGrid.AddRow("  [bold deepskyblue3]init[/]",      "[dim]Configure lorex for this project or globally[/]");
+    commandsGrid.AddRow("  [bold deepskyblue3]install[/]",   "[dim]Install skills from the registry, taps, or a URL[/]");
+    commandsGrid.AddRow("  [bold deepskyblue3]uninstall[/]", "[dim]Remove installed skills[/]");
+    commandsGrid.AddRow("  [bold deepskyblue3]create[/]",    "[dim]Scaffold a new skill for authoring[/]");
+    commandsGrid.AddRow("  [bold deepskyblue3]list[/]",      "[dim]Browse and filter available skills[/]");
+    commandsGrid.AddRow("  [bold deepskyblue3]status[/]",    "[dim]Show installed skills and their state[/]");
+    commandsGrid.AddRow("  [bold deepskyblue3]sync[/]",      "[dim]Pull latest skill versions from registry and taps[/]");
+    commandsGrid.AddRow("  [bold deepskyblue3]publish[/]",   "[dim]Push local skills to the registry[/]");
+    commandsGrid.AddRow("  [bold deepskyblue3]refresh[/]",   "[dim]Re-project skills into native agent locations[/]");
+    commandsGrid.AddRow("  [bold deepskyblue3]registry[/]",  "[dim]Configure the connected registry policy[/]");
+    commandsGrid.AddRow("  [bold deepskyblue3]tap[/]",       "[dim]Manage read-only skill sources[/]");
+    AnsiConsole.Write(commandsGrid);
+    AnsiConsole.WriteLine();
 
-    void Row(Grid g, string cmd, string args, string desc)
-        => g.AddRow($"  [bold deepskyblue3]{cmd}[/]", $"[grey]{args}[/]", $"[dim]{desc}[/]");
+    AnsiConsole.Write(new Rule("[bold]FLAGS[/]").LeftJustified().RuleStyle("blue dim"));
+    var flagsGrid = new Grid()
+        .AddColumn(new GridColumn().Width(20))
+        .AddColumn();
+    flagsGrid.AddRow("  [bold]-g[/][dim], --global[/]",  "[dim]Operate on the global lorex root ([bold]~/.lorex/[/])[/]");
+    flagsGrid.AddRow("  [bold]-h[/][dim], --help[/]",    "[dim]Show help for a command[/]");
+    flagsGrid.AddRow("  [bold]-v[/][dim], --version[/]", "[dim]Show version[/]");
+    AnsiConsole.Write(flagsGrid);
+    AnsiConsole.WriteLine();
 
-    void Section(string title, Action<Grid> rows)
-    {
-        AnsiConsole.Write(new Rule($"[bold]{title}[/]").LeftJustified().RuleStyle("blue dim"));
-        var g = MakeGrid();
-        rows(g);
-        AnsiConsole.Write(g);
-        AnsiConsole.WriteLine();
-    }
-
-    Section("General", g =>
-    {
-        Row(g, "init",    "[[<url>]] [[--local]] [[--global]] [[--adapters a,b]]",  "Configure a registry and set up this project or global skills");
-        Row(g, "create",  "[[<name>]] [[-d desc]] [[-t tags]] [[-o owner]]",   "Scaffold a new skill for AI/manual authoring");
-        Row(g, "status",    "[[-g|--global]]",                                   "Show installed skills and their state");
-        Row(g, "refresh",   "[[--target adapter]]",                             "Re-project lorex skills into native agent locations");
-        Row(g, "install",   "[[<skill|url>…]] [[--all]] [[--recommended]] [[--search <text>]] [[--tag <tag>]] [[-g|--global]]", "Install skills from registry, taps, or a URL");
-        Row(g, "uninstall", "[[<skill>…]] [[--all]] [[-g|--global]]",                                                          "Remove installed skills, or choose interactively");
-    });
-
-    Section("Registry", g =>
-    {
-        Row(g, "list",        "[[--search <text>]] [[--tag <tag>]] [[--page <n>]] [[--page-size <n>]] [[-g|--global]]", "Browse and filter skills available in the registry and taps");
-        Row(g, "sync",        "[[-g|--global]]",                                                                        "Pull latest skill versions from the registry and all taps");
-        Row(g, "publish",     "[[<skill>…]]",                                                                           "Push local skills to the registry");
-        Row(g, "registry",    "",                                                                                        "Interactively configure the connected registry policy");
-        Row(g, "tap promote", "[[<name>]]",                                                                             "Add tap(s) to registry recommended taps");
-    });
-
-    Section("Taps", g =>
-    {
-        Row(g, "tap add",    "<url> [[--name <name>]] [[--root <path>]] [[-g|--global]]", "Add a read-only skill source (any git repo)");
-        Row(g, "tap remove", "<name> [[-g|--global]]",                                    "Remove a tap");
-        Row(g, "tap list",   "[[-g|--global]]",                                           "List configured taps with skill counts");
-        Row(g, "tap sync",   "[[<name>]] [[-g|--global]]",                                "Pull latest from all taps (or one)");
-    });
-
-    AnsiConsole.MarkupLine("[dim]Run [bold]lorex <command> --help[/] for command-specific help.[/]");
+    AnsiConsole.MarkupLine("[dim]Run [bold]lorex <command> --help[/] for command-specific flags and examples.[/]");
     AnsiConsole.WriteLine();
     return 0;
 }
