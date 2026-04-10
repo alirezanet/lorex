@@ -99,10 +99,11 @@ static int PrintHelp()
 
     Section("Registry", g =>
     {
-        Row(g, "list",      "[[--search <text>]] [[--tag <tag>]] [[--page <n>]] [[--page-size <n>]] [[-g|--global]]",       "Browse and filter skills available in the registry and taps");
-        Row(g, "sync",      "[[-g|--global]]",                                                                          "Pull latest skill versions from the registry and all taps");
-        Row(g, "publish",   "[[<skill>…]]",                                                                                  "Push local skills to the registry");
-        Row(g, "registry",  "",                                                                                               "Interactively configure the connected registry policy");
+        Row(g, "list",        "[[--search <text>]] [[--tag <tag>]] [[--page <n>]] [[--page-size <n>]] [[-g|--global]]", "Browse and filter skills available in the registry and taps");
+        Row(g, "sync",        "[[-g|--global]]",                                                                        "Pull latest skill versions from the registry and all taps");
+        Row(g, "publish",     "[[<skill>…]]",                                                                           "Push local skills to the registry");
+        Row(g, "registry",    "",                                                                                        "Interactively configure the connected registry policy");
+        Row(g, "tap promote", "[[<name>]]",                                                                             "Add tap(s) to registry recommended taps");
     });
 
     Section("Taps", g =>
