@@ -162,8 +162,6 @@ internal static class SkillPickerTui
                 {
                     var name = pageItems[state.Cursor].Name;
                     if (!state.Selected.Remove(name)) state.Selected.Add(name);
-                    // Advance cursor so rapid Space-pressing walks down
-                    if (state.Cursor < pageItems.Count - 1) state.Cursor++;
                 }
                 break;
 
