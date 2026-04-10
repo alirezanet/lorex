@@ -34,7 +34,7 @@ Lorex commands resolve the project root by walking up from the current working d
 | `list` | `lorex list [--search <text>] [--tag <tag>] [--page <n>] [--page-size <n>] [-g\|--global]` | Browse and filter skills available in the registry and all taps |
 | `status` | `lorex status [-g\|--global]` | Show installed skills, registry state, and adapter targets |
 | `sync` | `lorex sync [-g\|--global]` | Pull the latest versions from the registry and all taps, and restore any missing symlinks (useful after a fresh clone). Skills deleted from the registry are removed automatically. |
-| `publish` | `lorex publish [<skill>…]` | Contribute local skills using the registry's publish policy |
+| `publish` | `lorex publish [<skill>…] [-g\|--global]` | Contribute skills to the registry — locally authored skills, or registry-installed skills you have edited in place |
 | `registry` | `lorex registry` | Interactively update the connected registry's publish policy and recommended taps |
 | `refresh` | `lorex refresh [--target adapter]` | Re-project skills into native agent locations after skill edits |
 | `tap add` | `lorex tap add <url\|path> [--name <name>] [--root <path>] [-g\|--global]` | Add a read-only skill source (any git repo, HTTPS/SSH or local absolute path) |
@@ -98,6 +98,8 @@ Shared registries declare their own contribution policy in `/.lorex-registry.jso
 - `direct`: `lorex publish` commits and pushes straight to the registry
 - `pull-request`: `lorex publish` creates a branch, pushes it, and prints a PR URL when possible
 - `read-only`: `lorex publish` is blocked
+
+`lorex publish` works for both locally authored skills (real directories) and registry-installed skills you have edited in place (symlinks). Because registry-installed skills are symlinks into the local cache, editing a skill file edits the cache directly. Use `lorex publish -g` to publish globally installed skills. If you run `lorex sync` while the cache has uncommitted edits, lorex shows the affected skills with the correct publish command and asks whether to keep or discard changes before pulling.
 
 A registry can also declare `recommendedTaps` — read-only skill sources it suggests to all connected projects. Lorex surfaces these during `lorex init` (user must accept) and notifies on `lorex sync` when new ones appear. Taps are never added silently.
 

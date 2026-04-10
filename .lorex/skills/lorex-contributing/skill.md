@@ -204,7 +204,7 @@ Native AOT publish profiles remain under `src/Lorex/Properties/PublishProfiles/`
 
 1. **`src/Lorex/Resources/lorex.md` and `.lorex/skills/lorex/SKILL.md` must always be identical.** If you change one, change the other in the same commit. No exceptions.
 2. **If your change affects architecture, repo layout, contribution workflow, or the lorex-contributing skill content itself, you must update `.lorex/skills/lorex-contributing/SKILL.md` (this file) in the same commit.**
-3. **If your change affects any user-facing CLI behavior, adapter paths, skill format, or registry behavior, you must update the relevant `docs/` page(s) in the same commit.** See the [docs/ update rules](#docs-update-rules) table below.
+3. **If your change affects any user-facing CLI behavior, adapter paths, skill format, or registry behavior, you must update BOTH the relevant `docs/` page(s) AND `src/Lorex/Resources/lorex.md` / `.lorex/skills/lorex/SKILL.md` in the same commit.** These are two separate obligations — updating docs/ without also updating the skill files (or vice versa) is an incomplete contribution. See the [docs/ update rules](#docs-update-rules) table and the [Checklist after changes](#checklist-after-changes) table for the full list of files per area.
 4. **Never finish a contribution without verifying that every agent reading only the skill files will still get an accurate picture.** If the code changed but the skill files did not, the contribution is incomplete.
 5. **Always run `dotnet build` and `dotnet test` after making code changes and before considering a task done.** A contribution with a build error or a failing test is never complete, regardless of how correct the logic appears.
 
