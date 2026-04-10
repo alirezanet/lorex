@@ -89,4 +89,36 @@ public sealed class LocalOnlyFlowTests
         // lorex built-in skill is always seeded
         Assert.Contains("lorex", config.InstalledSkills);
     }
+
+    [Fact]
+    public void InitLocal_WithExistingNativeSkillDir_RetainsDirectory()
+    {
+        using var h = new LorexTestHarness();
+        var nativeSkillDir = Path.Combine(h.ProjectRoot, ".claude", "skills", "my-existing-skill");
+        Directory.CreateDirectory(nativeSkillDir);
+        File.WriteAllText(Path.Combine(nativeSkillDir, "SKILL.md"), "---\ndescription: test\n---\n# My skill\n");
+
+        var exit = h.Run("init", "--local", "--adapters", "claude");
+
+        Assert.Equal(0, exit);
+        Assert.True(Directory.Exists(nativeSkillDir), "Existing native skill directory must not be removed by init");
+    }
+
+    [Fact]
+    public void InitLocal_WithExistingNativeSkillDir_DoesNotAdoptWithoutConsent()
+    {
+        using var h = new LorexTestHarness();
+        var nativeSkillDir = Path.Combine(h.ProjectRoot, ".claude", "skills", "my-existing-skill");
+        Directory.CreateDirectory(nativeSkillDir);
+        File.WriteAllText(Path.Combine(nativeSkillDir, "SKILL.md"), "---\ndescription: test\n---\n# My skill\n");
+
+        h.Run("init", "--local", "--adapters", "claude");
+
+        var config = h.ReadConfig();
+        Assert.DoesNotContain("my-existing-skill", config.InstalledSkills);
+        Assert.True(Directory.Exists(nativeSkillDir), "Skill must remain in its original location");
+        Assert.False(
+            Directory.Exists(Path.Combine(h.ProjectRoot, ".lorex", "skills", "my-existing-skill")),
+            "Skill must not be silently moved to .lorex/skills");
+    }
 }

@@ -141,6 +141,29 @@ public static class InitCommand
             AnsiConsole.MarkupLine("[yellow]No adapters selected — lorex will not project skills into any agent-specific location.[/]");
         }
 
+        // ── Check for existing native skills ──────────────────────────────────
+        var skillsToAdopt = new List<(string SkillName, string SourcePath)>();
+        if (selectedAdapters.Count > 0)
+        {
+            var orphaned = FindOrphanedNativeSkills(projectRoot, selectedAdapters);
+            if (orphaned.Count > 0)
+            {
+                if (!Console.IsInputRedirected)
+                {
+                    var toAdopt = PromptOrphanedNativeSkills(orphaned);
+                    if (toAdopt is null)
+                        return 1;
+                    skillsToAdopt.AddRange(toAdopt);
+                }
+                else
+                {
+                    AnsiConsole.MarkupLine("[yellow]Warning:[/] Found {0} skill(s) in native agent paths not managed by lorex. These will be left in place.", orphaned.Count);
+                    foreach (var (_, skillName, sourcePath) in orphaned)
+                        AnsiConsole.MarkupLine("  [dim]•[/] [bold]{0}[/] [dim]({1})[/]", Markup.Escape(skillName), Markup.Escape(sourcePath));
+                }
+            }
+        }
+
         // ── Write lorex.json ──────────────────────────────────────────────────
         // Preserve installed skills, versions, sources, and taps from any existing config so that
         // re-running lorex init (e.g. to change adapters) doesn't orphan previously installed skills
@@ -158,7 +181,9 @@ public static class InitCommand
                     Policy = registryPolicy ?? throw new InvalidOperationException("Registry policy is missing."),
                 },
             Adapters = [.. selectedAdapters],
-            InstalledSkills        = prior?.InstalledSkills        ?? [],
+            InstalledSkills        = [.. (prior?.InstalledSkills ?? [])
+                .Concat(skillsToAdopt.Select(s => s.SkillName))
+                .Distinct(StringComparer.OrdinalIgnoreCase)],
             InstalledSkillVersions = prior?.InstalledSkillVersions ?? new Dictionary<string, string>(),
             InstalledSkillSources  = prior?.InstalledSkillSources  ?? new Dictionary<string, string>(),
             Taps                   = prior?.Taps                   ?? [],
@@ -182,6 +207,10 @@ public static class InitCommand
             };
             ServiceFactory.Skills.WriteConfig(projectRoot, config);
         }
+
+        // ── Adopt chosen native skills into lorex ─────────────────────────────
+        if (skillsToAdopt.Count > 0)
+            AdoptNativeSkills(projectRoot, skillsToAdopt);
 
         ServiceFactory.Skills.TrackInstalledVersions(projectRoot, config.InstalledSkills);
         config = ServiceFactory.Skills.ReadConfig(projectRoot);
@@ -336,6 +365,92 @@ FinishInit:
         else
             AnsiConsole.MarkupLine("[dim]Run [bold]lorex sync[/] later to refresh installed shared skills.[/]");
         return 0;
+    }
+
+    private static List<(string AdapterName, string SkillName, string SourcePath)> FindOrphanedNativeSkills(
+        string projectRoot,
+        IEnumerable<string> selectedAdapters)
+    {
+        var lorexSkillsRoot = Path.Combine(projectRoot, ".lorex", "skills");
+        var result = new List<(string AdapterName, string SkillName, string SourcePath)>();
+
+        foreach (var adapterName in selectedAdapters)
+        {
+            if (!AdapterService.KnownAdapters.TryGetValue(adapterName, out var adapter))
+                continue;
+
+            if (adapter.GetProjection(projectRoot) is not SkillDirectoryProjection projection)
+                continue;
+
+            if (!Directory.Exists(projection.RootPath))
+                continue;
+
+            foreach (var dir in Directory.EnumerateDirectories(projection.RootPath))
+            {
+                if (!AdapterService.IsLorexManagedProjection(dir, lorexSkillsRoot))
+                    result.Add((adapterName, Path.GetFileName(dir), dir));
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>Returns skills to adopt, or null if the user cancelled init.</summary>
+    private static List<(string SkillName, string SourcePath)>? PromptOrphanedNativeSkills(
+        List<(string AdapterName, string SkillName, string SourcePath)> orphaned)
+    {
+        AnsiConsole.MarkupLine("[yellow]Warning:[/] Found {0} skill(s) in native agent paths not managed by lorex:", orphaned.Count);
+        AnsiConsole.WriteLine();
+        foreach (var (_, skillName, sourcePath) in orphaned)
+            AnsiConsole.MarkupLine("  [dim]•[/] [bold]{0}[/] [dim]({1})[/]", Markup.Escape(skillName), Markup.Escape(sourcePath));
+        AnsiConsole.WriteLine();
+
+        var action = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("[bold]What would you like to do with these skills?[/]")
+                .AddChoices(
+                    "Keep them in place",
+                    "Adopt selected skills into lorex",
+                    "Cancel"));
+
+        if (action == "Cancel")
+            return null;
+
+        if (action == "Keep them in place")
+            return [];
+
+        var toAdopt = AnsiConsole.Prompt(
+            new MultiSelectionPrompt<(string AdapterName, string SkillName, string SourcePath)>()
+                .Title("[bold]Select skills to adopt into lorex:[/]")
+                .InstructionsText("[dim](Space to toggle, Enter to confirm, Enter with none = keep all in place)[/]")
+                .NotRequired()
+                .UseConverter(item => $"[bold]{Markup.Escape(item.SkillName)}[/] [dim]({Markup.Escape(item.SourcePath)})[/]")
+                .AddChoices(orphaned));
+
+        return [.. toAdopt.Select(item => (item.SkillName, item.SourcePath))];
+    }
+
+    private static void AdoptNativeSkills(string projectRoot, IEnumerable<(string SkillName, string SourcePath)> skills)
+    {
+        foreach (var (skillName, sourcePath) in skills)
+        {
+            var destDir = Path.Combine(projectRoot, ".lorex", "skills", skillName);
+            if (Directory.Exists(destDir))
+            {
+                AnsiConsole.MarkupLine("[yellow]Skipped[/] [bold]{0}[/] [dim](a skill with this name already exists in .lorex/skills)[/]", Markup.Escape(skillName));
+                continue;
+            }
+
+            try
+            {
+                Directory.Move(sourcePath, destDir);
+                AnsiConsole.MarkupLine("[green]✓[/] Adopted [bold]{0}[/] into lorex", Markup.Escape(skillName));
+            }
+            catch (Exception ex)
+            {
+                AnsiConsole.MarkupLine("[yellow]Warning:[/] Could not adopt [bold]{0}[/]: {1}", Markup.Escape(skillName), Markup.Escape(ex.Message));
+            }
+        }
     }
 
     internal static List<string> GetDefaultAdapters(IEnumerable<string> detectedAdapters)
