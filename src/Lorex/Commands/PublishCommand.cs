@@ -10,6 +10,9 @@ public static class PublishCommand
     /// <summary>Runs the command. Returns 0 on success, 1 if any publish failed.</summary>
     public static int Run(string[] args, string? cwd = null)
     {
+        if (args.Any(a => a is "--help" or "-h"))
+            return PrintHelp();
+
         var projectRoot = ProjectRootLocator.ResolveForExistingProject(cwd ?? Directory.GetCurrentDirectory());
         var builtIns = BuiltInSkillService.SkillNames().ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -136,4 +139,18 @@ public static class PublishCommand
 
         return failed ? 1 : 0;
     }
+
+    private static int PrintHelp() => HelpPrinter.Print(
+        "lorex publish [<skill>…]",
+        "Push local skills to the registry. Running without arguments opens an interactive picker.\nDirect registries publish immediately; pull-request registries prepare a review branch.",
+        options:
+        [
+            ("<skill>…",   "Skill names to publish"),
+            ("-h, --help", "Show this help"),
+        ],
+        examples:
+        [
+            ("Interactive picker",       "lorex publish"),
+            ("Publish a specific skill", "lorex publish my-skill"),
+        ]);
 }
