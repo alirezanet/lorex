@@ -343,20 +343,31 @@ public static class TapCommand
 
     // ── Help ──────────────────────────────────────────────────────────────────
 
-    private static int PrintHelp()
-    {
-        AnsiConsole.MarkupLine("[bold]lorex tap[/] — manage read-only skill sources");
-        AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine("  [bold deepskyblue3]add[/]     [grey]<url> [[--name <name>]] [[--root <path>]] [[-g|--global]][/]  Add a tap");
-        AnsiConsole.MarkupLine("  [bold deepskyblue3]remove[/]  [grey]<name> [[-g|--global]][/]                                     Remove a tap");
-        AnsiConsole.MarkupLine("  [bold deepskyblue3]list[/]    [grey][[-g|--global]][/]                                            List configured taps");
-        AnsiConsole.MarkupLine("  [bold deepskyblue3]sync[/]    [grey][[<name>]] [[-g|--global]][/]                                 Pull latest from taps");
-        AnsiConsole.MarkupLine("  [bold deepskyblue3]promote[/] [grey][[<name>]][/]                                                 Add tap(s) to registry recommended taps");
-        AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine("[dim]Use [bold]-g[/] / [bold]--global[/] to operate on the global lorex config ([bold]~/.lorex/[/]) instead of the current project.[/]");
-        AnsiConsole.MarkupLine("[dim]Skills from taps appear in [bold]lorex list[/] and [bold]lorex install[/] alongside registry skills.[/]");
-        return 0;
-    }
+    private static int PrintHelp() => HelpPrinter.Print(
+        "lorex tap <subcommand> [args]",
+        "Manage read-only skill sources (taps). Skills from taps appear\nalongside registry skills in lorex list and lorex install.",
+        subcommands:
+        [
+            ("add <url> [--name <n>] [--root <p>] [-g]", "Add a tap"),
+            ("remove <name> [-g]",                       "Remove a tap"),
+            ("list [-g]",                                "List configured taps"),
+            ("sync [<name>] [-g]",                       "Pull latest from taps"),
+            ("promote [<name>]",                         "Add tap(s) to registry recommended taps"),
+        ],
+        options:
+        [
+            ("-g, --global", "Operate on the global lorex root (~/.lorex)"),
+            ("-h, --help",   "Show this help"),
+        ],
+        examples:
+        [
+            ("Add a tap",              "lorex tap add https://github.com/org/skills"),
+            ("Add with a custom name", "lorex tap add https://github.com/org/skills --name myorg"),
+            ("",                       "lorex tap list"),
+            ("",                       "lorex tap sync"),
+            ("",                       "lorex tap remove myorg"),
+            ("Promote to registry",    "lorex tap promote myorg"),
+        ]);
 
     private static int UnknownSubcommand(string sub)
     {

@@ -431,6 +431,21 @@ public sealed class CommandArgumentTests
     }
 
     [Fact]
+    public void RegistryCommand_HelpFlag_ReturnsZero()
+    {
+        Assert.Equal(0, RegistryCommand.Run(["--help"]));
+        Assert.Equal(0, RegistryCommand.Run(["-h"]));
+    }
+
+    [Fact]
+    public void TapCommand_HelpFlag_ReturnsZero()
+    {
+        Assert.Equal(0, TapCommand.Run(["--help"]));
+        Assert.Equal(0, TapCommand.Run(["-h"]));
+        Assert.Equal(0, TapCommand.Run([]));   // no args → show help
+    }
+
+    [Fact]
     public void SyncCommand_HelpFlag_ReturnsZero()
     {
         Assert.Equal(0, SyncCommand.Run(["--help"]));
