@@ -1,4 +1,5 @@
 using Lorex.Cli;
+using Lorex.Core.Models;
 using Lorex.Core.Services;
 using Spectre.Console;
 
@@ -19,6 +20,7 @@ public static class TapCommand
             "remove"          => Remove(rest, cwd, homeRoot),
             "list"            => List(rest, cwd, homeRoot),
             "sync"            => Sync(rest, cwd, homeRoot),
+            "promote"         => Promote(rest, cwd),
             "--help" or "-h"  => PrintHelp(),
             _                 => UnknownSubcommand(sub),
         };
@@ -204,6 +206,135 @@ public static class TapCommand
         }
     }
 
+    // ── lorex tap promote [<name>] ────────────────────────────────────────────
+
+    private static int Promote(string[] args, string? cwd)
+    {
+        var tapName = args.FirstOrDefault(a => !a.StartsWith("-", StringComparison.Ordinal));
+
+        var projectRoot = ProjectRootLocator.ResolveForExistingProject(cwd ?? Directory.GetCurrentDirectory());
+
+        if (!RegistryCommandSupport.TryRefreshConfiguredRegistry(projectRoot, out LorexConfig config))
+            return 1;
+
+        var currentPolicy   = config.Registry!.Policy;
+        var alreadyPromoted = new HashSet<string>(
+            currentPolicy.RecommendedTaps?.Select(t => t.Url) ?? [],
+            StringComparer.OrdinalIgnoreCase);
+
+        TapConfig[] toPromote;
+
+        if (tapName is not null)
+        {
+            var tap = config.Taps.FirstOrDefault(t =>
+                string.Equals(t.Name, tapName, StringComparison.OrdinalIgnoreCase));
+
+            if (tap is null)
+            {
+                AnsiConsole.MarkupLine(
+                    "[red]Error:[/] No tap named '{0}'. Run [bold]lorex tap list[/] to see configured taps.",
+                    Markup.Escape(tapName));
+                return 1;
+            }
+
+            if (alreadyPromoted.Contains(tap.Url))
+            {
+                AnsiConsole.MarkupLine(
+                    "[yellow]Tap [bold]{0}[/] is already in the registry's recommended taps.[/]",
+                    Markup.Escape(tapName));
+                return 0;
+            }
+
+            toPromote = [tap];
+        }
+        else
+        {
+            if (config.Taps.Length == 0)
+            {
+                AnsiConsole.MarkupLine("[yellow]No taps configured.[/]");
+                AnsiConsole.MarkupLine("[dim]Add one with [bold]lorex tap add <url>[/], then promote it.[/]");
+                return 0;
+            }
+
+            var promotable = config.Taps
+                .Where(t => !alreadyPromoted.Contains(t.Url))
+                .ToArray();
+
+            if (promotable.Length == 0)
+            {
+                AnsiConsole.MarkupLine("[yellow]All configured taps are already in the registry's recommended taps.[/]");
+                AnsiConsole.MarkupLine("[dim]Use [bold]lorex registry[/] to manage existing recommendations.[/]");
+                return 0;
+            }
+
+            var prompt = new MultiSelectionPrompt<TapConfig>()
+                .Title("[bold]Which taps should this registry recommend to all connected projects?[/]")
+                .InstructionsText("[dim](Space to toggle, Enter to confirm)[/]")
+                .NotRequired()
+                .UseConverter(t =>
+                    $"[bold]{Markup.Escape(t.Name)}[/] [dim]— {Markup.Escape(t.Url)}" +
+                    (t.Root is not null ? $" ({Markup.Escape(t.Root)})" : "") + "[/]")
+                .AddChoices(promotable);
+
+            var selected = AnsiConsole.Prompt(prompt);
+
+            if (selected.Count == 0)
+            {
+                AnsiConsole.MarkupLine("[yellow]No taps selected.[/]");
+                return 0;
+            }
+
+            toPromote = [.. selected];
+        }
+
+        var merged        = (currentPolicy.RecommendedTaps ?? []).Concat(toPromote).ToArray();
+        var updatedPolicy = currentPolicy with { RecommendedTaps = merged };
+
+        try
+        {
+            RegistryPolicyUpdateResult result = null!;
+            AnsiConsole.Status()
+                .Start("Updating registry recommendations…", ctx =>
+                {
+                    ctx.Spinner(Spinner.Known.Dots);
+                    result = ServiceFactory.Registry.UpdateRegistryPolicy(config.Registry!.Url, updatedPolicy);
+                });
+
+            var names = string.Join(", ", toPromote.Select(t => Markup.Escape(t.Name)));
+
+            if (string.Equals(result.PublishMode, RegistryPublishModes.Direct, StringComparison.OrdinalIgnoreCase))
+            {
+                ServiceFactory.Skills.WriteConfig(projectRoot, config with
+                {
+                    Registry = config.Registry with { Policy = updatedPolicy },
+                });
+
+                AnsiConsole.MarkupLine(
+                    $"[green]✓[/] Added [bold]{toPromote.Length}[/] tap(s) to registry recommendations: {names}");
+            }
+            else
+            {
+                AnsiConsole.MarkupLine(
+                    "[green]✓[/] Prepared a registry policy update on branch [bold]{0}[/] targeting [bold]{1}[/].",
+                    Markup.Escape(result.BranchName ?? string.Empty),
+                    Markup.Escape(result.BaseBranch ?? string.Empty));
+
+                if (!string.IsNullOrWhiteSpace(result.PullRequestUrl))
+                    AnsiConsole.MarkupLine("[dim]Open a PR:[/] {0}", Markup.Escape(result.PullRequestUrl));
+
+                AnsiConsole.MarkupLine(
+                    "[dim]The project keeps using the current registry policy until that change is merged and you run [bold]lorex sync[/].[/]");
+            }
+
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine("[red]Error:[/] {0}", Markup.Escape(ex.Message));
+            return 1;
+        }
+    }
+
     // ── Global flag ───────────────────────────────────────────────────────────
 
     internal static bool WantsGlobal(string[] args) =>
@@ -220,6 +351,7 @@ public static class TapCommand
         AnsiConsole.MarkupLine("  [bold deepskyblue3]remove[/]  [grey]<name> [[-g|--global]][/]                                     Remove a tap");
         AnsiConsole.MarkupLine("  [bold deepskyblue3]list[/]    [grey][[-g|--global]][/]                                            List configured taps");
         AnsiConsole.MarkupLine("  [bold deepskyblue3]sync[/]    [grey][[<name>]] [[-g|--global]][/]                                 Pull latest from taps");
+        AnsiConsole.MarkupLine("  [bold deepskyblue3]promote[/] [grey][[<name>]][/]                                                 Add tap(s) to registry recommended taps");
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("[dim]Use [bold]-g[/] / [bold]--global[/] to operate on the global lorex config ([bold]~/.lorex/[/]) instead of the current project.[/]");
         AnsiConsole.MarkupLine("[dim]Skills from taps appear in [bold]lorex list[/] and [bold]lorex install[/] alongside registry skills.[/]");

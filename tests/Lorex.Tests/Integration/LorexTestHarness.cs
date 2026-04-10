@@ -217,10 +217,15 @@ internal sealed class LorexTestHarness : IDisposable
     /// <summary>Reads .lorex/lorex.json from the global root.</summary>
     public LorexConfig ReadGlobalConfig() => ServiceFactory.Skills.ReadConfig(GlobalRoot);
 
-    /// <summary>Reads the registry policy from a local registry directory's .lorex-registry.json.</summary>
-    public RegistryPolicy ReadRegistryPolicy(string registryDir)
+    /// <summary>
+    /// Reads the registry policy for the given registry URL from the lorex cache.
+    /// Reads from the lorex cache (not the registry working tree) because
+    /// <c>UpdateRegistryPolicy</c> writes there before pushing to origin.
+    /// </summary>
+    public RegistryPolicy ReadRegistryPolicy(string registryUrl)
     {
-        var manifestPath = Path.Combine(registryDir, RegistryService.RegistryManifestFileName);
+        var cachePath    = ServiceFactory.Registry.GetCachePath(registryUrl);
+        var manifestPath = Path.Combine(cachePath, RegistryService.RegistryManifestFileName);
         var json = File.ReadAllText(manifestPath);
         return System.Text.Json.JsonSerializer.Deserialize(json, LorexJsonContext.Default.RegistryPolicy)
             ?? throw new InvalidOperationException($"Failed to deserialize registry policy from {manifestPath}");
