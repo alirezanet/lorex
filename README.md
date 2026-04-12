@@ -194,6 +194,7 @@ dotnet test                   # run tests
 **This repo dogfoods Lorex.** Once cloned, your AI agent can read the `lorex-contributing` skill to learn the internal architecture and contribution workflow automatically.
 
 *Lorex is under active development. Expect rapid changes, rough edges, and frequent improvements.*
+If lorex has been useful, consider ⭐ starring the repo!
 
 -----
 
