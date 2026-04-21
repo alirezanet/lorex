@@ -20,7 +20,7 @@ public static class TapCommand
             "remove"          => Remove(rest, cwd, homeRoot),
             "list"            => List(rest, cwd, homeRoot),
             "sync"            => Sync(rest, cwd, homeRoot),
-            "promote"         => Promote(rest, cwd),
+            "promote"         => Promote(rest, cwd, homeRoot),
             "--help" or "-h"  => PrintHelp(),
             _                 => UnknownSubcommand(sub),
         };
@@ -208,11 +208,14 @@ public static class TapCommand
 
     // ── lorex tap promote [<name>] ────────────────────────────────────────────
 
-    private static int Promote(string[] args, string? cwd)
+    private static int Promote(string[] args, string? cwd, string? homeRoot)
     {
+        var isGlobal = WantsGlobal(args);
         var tapName = args.FirstOrDefault(a => !a.StartsWith("-", StringComparison.Ordinal));
 
-        var projectRoot = ProjectRootLocator.ResolveForExistingProject(cwd ?? Directory.GetCurrentDirectory());
+        var projectRoot = isGlobal
+            ? GlobalRootLocator.ResolveForExistingGlobal(homeRoot)
+            : ProjectRootLocator.ResolveForExistingProject(cwd ?? Directory.GetCurrentDirectory());
 
         if (!RegistryCommandSupport.TryRefreshConfiguredRegistry(projectRoot, out LorexConfig config))
             return 1;
@@ -352,7 +355,7 @@ public static class TapCommand
             ("remove <name> [-g]",                       "Remove a tap"),
             ("list [-g]",                                "List configured taps"),
             ("sync [<name>] [-g]",                       "Pull latest from taps"),
-            ("promote [<name>]",                         "Add tap(s) to registry recommended taps"),
+            ("promote [<name>] [-g]",                    "Add tap(s) to registry recommended taps"),
         ],
         options:
         [
